@@ -12,12 +12,12 @@ The BLE task is transport only. It must not own sensor timing.
 
 Use the following stable UUIDs unless changed by an explicit protocol-major decision:
 
-- Service: \`7e400001-b5a3-f393-e0a9-e50e24dcca9e\`
-- Audio notify: \`7e400002-b5a3-f393-e0a9-e50e24dcca9e\`
-- Control write/read: \`7e400003-b5a3-f393-e0a9-e50e24dcca9e\`
-- Status read/notify: \`7e400004-b5a3-f393-e0a9-e50e24dcca9e\`
+- Service: `7e400001-b5a3-f393-e0a9-e50e24dcca9e`
+- Audio notify: `7e400002-b5a3-f393-e0a9-e50e24dcca9e`
+- Control write/read: `7e400003-b5a3-f393-e0a9-e50e24dcca9e`
+- Status read/notify: `7e400004-b5a3-f393-e0a9-e50e24dcca9e`
 
-Device name prefix: \`S3-ContactMic\`.
+Device name prefix: `S3-ContactMic`.
 
 ## Session model
 
@@ -61,7 +61,7 @@ Required flags:
 - bit 2: firmware sample-ring overrun observed since previous emitted packet;
 - remaining bits reserved and emitted as zero.
 
-The host must use \`first_sample_index\`, not just packet sequence, to calculate missing source intervals.
+The host must use `first_sample_index`, not just packet sequence, to calculate missing source intervals.
 
 ## MTU and packetization
 
@@ -72,7 +72,7 @@ Payload size is computed from the negotiated/effective characteristic notificati
 High-rate raw PCM is not practical at the default 23-byte ATT MTU. Therefore:
 
 - status reports effective MTU;
-- \`auto\` may reduce source rate when transport capacity is insufficient;
+- `auto` may reduce source rate when transport capacity is insufficient;
 - host must emit a clear diagnostic when the requested source mode cannot be sustained;
 - packetizer must support variable samples-per-notification without changing the v1 header.
 
@@ -104,7 +104,7 @@ If notifications cannot keep up:
 - preserve acquisition counters;
 - increment/report transport-drop or queue-overrun evidence;
 - do not silently rewrite sample indexes;
-- allow \`auto\` policy to step down only through an explicit state transition visible in status.
+- allow `auto` policy to step down only through an explicit state transition visible in status.
 
 On disconnect:
 
