@@ -55,7 +55,7 @@ Pre-hardware targets:
 - every sample stream carries sequence/sample-index information sufficient to detect discontinuities;
 - transport backpressure cannot stall the sensor acquisition task.
 
-Hardware qualification targets are defined in \`docs/rag/06-VERIFICATION-AND-CI.md\`.
+Hardware qualification targets are defined in `docs/rag/06-VERIFICATION-AND-CI.md`.
 
 ## User-facing behavior
 
