@@ -65,7 +65,7 @@ Source rate comes from session/frame metadata, not a constant 8 kHz assumption.
 
 Minimum sinks:
 
-- live \`sounddevice\` output to a selected device;
+- live `sounddevice` output to a selected device;
 - WAV recording.
 
 The project does not implement an OS kernel microphone driver. For applications requiring a microphone endpoint, route the receiver output to an installed virtual audio cable and select that cable's recording endpoint in the application.
