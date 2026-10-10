@@ -61,7 +61,7 @@ Fault injection must cover:
 
 ## CI polling discipline
 
-Agents monitoring GitHub Actions must obey \`AGENTS.md\`: at least 120 seconds between status queries while checks remain pending/running.
+Agents monitoring GitHub Actions must obey `AGENTS.md`: at least 120 seconds between status queries while checks remain pending/running.
 
 Do not compensate for slow jobs with tight polling.
 
@@ -93,7 +93,7 @@ For an initial sustained 10-minute connected run at the high source policy:
 - missed source intervals <= 0.1% target;
 - no sustained host audio underrun.
 
-If high mode exceeds the loss target after reasonable implementation tuning, that is evidence to make \`auto\` default to medium. It is not permission to conceal loss.
+If high mode exceeds the loss target after reasonable implementation tuning, that is evidence to make `auto` default to medium. It is not permission to conceal loss.
 
 ### Medium fallback target
 
@@ -123,4 +123,4 @@ Required automated checks must be green before merge.
 
 Hardware-required checks may be separate from ordinary PR CI, but CM-007 itself cannot be accepted without physical evidence.
 
-After merge, agents follow the post-merge verification protocol in \`AGENTS.md\`.
+After merge, agents follow the post-merge verification protocol in `AGENTS.md`.
