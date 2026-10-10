@@ -27,26 +27,22 @@ The revised programme isolates acquisition from BLE, uses direct single-axis DRD
 ## Dependency graph
 
 ~~~text
-CM-001 Foundation / CI
-   |\
-   | +----------> CM-005 Host receiver
-   v
-CM-002 QMI driver
-   |
-   v
-CM-003 Acquisition pipeline
-   |
-   +-------> CM-004 BLE transport
-                  |
-CM-005 -----------+
-                  v
-              CM-006 End-to-end integration
-                  |
-                  v
-              CM-007 Hardware qualification
-                  |
-                  v
-              CM-008 Release hardening
+                    CM-001 Foundation / CI
+                      /        |        \
+                     v         v         v
+              CM-002 QMI   CM-004 BLE   CM-005 Host
+                   |            |           |
+                   v            |           |
+              CM-003 Acquire    |           |
+                    \           |          /
+                     \          |         /
+                      +--------> CM-006 <+
+                                  |
+                                  v
+                             CM-007 Hardware
+                                  |
+                                  v
+                             CM-008 Release
 ~~~
 
 CM-005 may proceed after CM-001 because the wire contract is already authoritative in RAG. CM-004 may use a fake source until CM-003 is ready, but CM-006 is where real acquisition and BLE are accepted together.
