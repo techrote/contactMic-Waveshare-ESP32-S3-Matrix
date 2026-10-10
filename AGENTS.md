@@ -8,8 +8,8 @@ Resolve conflicts in this order:
 
 1. current accepted files on the repository default branch;
 2. the current issue body and later issue comments that explicitly amend it;
-3. the RAG documents indexed by \`RAG.md\`;
-4. upstream vendor documentation linked from \`docs/rag/00-SOURCES.md\`;
+3. the RAG documents indexed by `RAG.md`;
+4. upstream vendor documentation linked from `docs/rag/00-SOURCES.md`;
 5. implementation assumptions.
 
 Do not silently override accepted repository contracts. If an upstream source contradicts an accepted repository contract, stop, document the conflict on the issue, and make the smallest evidence-backed contract update required.
@@ -24,7 +24,7 @@ Before editing:
 - read the complete active issue body and comments;
 - inspect existing branches and PRs for the logical task ID;
 - inspect current CI state;
-- read \`RAG.md\` and every document named in the issue's Required reading section;
+- read `RAG.md` and every document named in the issue's Required reading section;
 - preserve valid work already present if the repository advanced after the prompt was written.
 
 Never assume hashes, branch names, issue state, or dependency state are unchanged.
@@ -33,7 +33,7 @@ Never assume hashes, branch names, issue state, or dependency state are unchange
 
 Use one dedicated branch per issue, normally:
 
-\`cm-###-short-description\`
+`cm-###-short-description`
 
 Keep commits reviewable and scoped. Do not mix unrelated cleanup.
 
@@ -45,7 +45,7 @@ Open one PR to the default branch. Use a short, factual body containing:
 - what changed;
 - verification performed;
 - known limitations, if any;
-- exactly one closing directive for the active issue, e.g. \`Closes #12\`.
+- exactly one closing directive for the active issue, e.g. `Closes #12`.
 
 Keep the PR body minimal. Do not add unrelated issue-closing syntax.
 
@@ -91,7 +91,7 @@ For hardware-gated issues:
 ## Engineering rules
 
 - ESP-IDF is the firmware authority unless a later accepted architecture decision changes it.
-- Pin numbers and sensor capabilities must come from \`docs/rag/02-HARDWARE-CONTRACT.md\`, not copied from third-party examples.
+- Pin numbers and sensor capabilities must come from `docs/rag/02-HARDWARE-CONTRACT.md`, not copied from third-party examples.
 - Do not call the stream a Bluetooth HFP microphone or LE Audio microphone.
 - Preserve protocol backward compatibility within a protocol major version.
 - Acquisition must never block on BLE transmission.
