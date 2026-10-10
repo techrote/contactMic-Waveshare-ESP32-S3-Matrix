@@ -1,6 +1,6 @@
 # Issue execution protocol
 
-This document supplements \`AGENTS.md\`. If they differ, \`AGENTS.md\` wins.
+This document supplements `AGENTS.md`. If they differ, `AGENTS.md` wins.
 
 ## Issue prompt structure
 
@@ -26,7 +26,7 @@ Agent actions:
 
 1. reconcile live default branch;
 2. inspect issue comments, branches, PRs and CI for the task ID;
-3. read \`AGENTS.md\`, \`RAG.md\`, and required issue documents;
+3. read `AGENTS.md`, `RAG.md`, and required issue documents;
 4. confirm dependencies are accepted;
 5. create/reuse the scoped branch without discarding valid work.
 
