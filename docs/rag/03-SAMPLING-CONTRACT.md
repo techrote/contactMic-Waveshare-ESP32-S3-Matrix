@@ -6,10 +6,10 @@ The firmware exposes source-rate policies rather than promising an exact literal
 
 Logical policies:
 
-- \`high\`: request QMI8658C 7174.4 Hz 6DOF mode;
-- \`medium\`: request 3587.2 Hz 6DOF mode;
-- \`safe\`: request approximately 896.8 Hz 6DOF mode or an evidence-backed equivalent;
-- \`auto\`: start with the highest qualified mode and fall back when qualification/transport policy requires it.
+- `high`: request QMI8658C 7174.4 Hz 6DOF mode;
+- `medium`: request 3587.2 Hz 6DOF mode;
+- `safe`: request approximately 896.8 Hz 6DOF mode or an evidence-backed equivalent;
+- `auto`: start with the highest qualified mode and fall back when qualification/transport policy requires it.
 
 The actual measured source rate in milli-Hz is authoritative in stream metadata.
 
@@ -56,7 +56,7 @@ The 7174.4 Hz mode is a target subject to real-board measurement.
 
 A hardware qualification run must measure missed intervals and I2C errors over a sustained interval.
 
-If high mode cannot meet the accepted loss threshold, the production \`auto\` policy must choose \`medium\` rather than hiding loss.
+If high mode cannot meet the accepted loss threshold, the production `auto` policy must choose `medium` rather than hiding loss.
 
 No implementation issue may lower acceptance thresholds merely to retain the higher advertised rate.
 
