@@ -2,6 +2,17 @@
 
 Plan reviewed and revised: 2026-10-10.
 
+## GitHub issue map
+
+- CM-001 -> #1
+- CM-002 -> #2
+- CM-003 -> #3
+- CM-004 -> #4
+- CM-005 -> #5
+- CM-006 -> #6
+- CM-007 -> #7
+- CM-008 -> #8
+
 ## Plan review
 
 The naive implementation would sample a nominal "8 kHz" accelerometer axis and immediately notify PCM over BLE. Review against the board schematic, QMI8658C Rev-A datasheet and ESP32-S3 Bluetooth capabilities exposed four failure modes:
@@ -159,10 +170,10 @@ Deliver:
 - MTU/transport evidence;
 - contact-vibration recordings/evidence as appropriate;
 - LED-off baseline and any status-display interference check;
-- choose production \`auto\` default from evidence;
+- choose production `auto` default from evidence;
 - fix only issues required to meet qualification, with tests.
 
-Acceptance: physical evidence satisfies \`docs/rag/06-VERIFICATION-AND-CI.md\`; if high mode misses target, medium becomes accepted default rather than concealing loss.
+Acceptance: physical evidence satisfies `docs/rag/06-VERIFICATION-AND-CI.md`; if high mode misses target, medium becomes accepted default rather than concealing loss.
 
 ## CM-008 — Release hardening and acceptance reconciliation
 
@@ -185,6 +196,6 @@ Acceptance: complete automated CI green, documented hardware evidence linked, de
 
 Every GitHub issue created from this programme is an executable agent prompt.
 
-The agent must read \`AGENTS.md\`, \`RAG.md\`, issue-specific documents and all issue comments; reconcile live state; implement; test; open a PR; monitor CI at **no less than 120-second intervals**; fix failures; merge only after all required automated checks are green; then verify the default branch and record acceptance.
+The agent must read `AGENTS.md`, `RAG.md`, issue-specific documents and all issue comments; reconcile live state; implement; test; open a PR; monitor CI at **no less than 120-second intervals**; fix failures; merge only after all required automated checks are green; then verify the default branch and record acceptance.
 
 Hardware issue CM-007 must not be merged as "qualified" without actual physical evidence.
