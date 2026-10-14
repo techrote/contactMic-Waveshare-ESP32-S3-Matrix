@@ -1,0 +1,25 @@
+# Generated firmware/native builds and local ESP-IDF configuration.
+/build/
+/firmware/build/
+/firmware/sdkconfig
+/firmware/sdkconfig.old
+/firmware/managed_components/
+# Keep sdkconfig.defaults and future dependency lockfiles tracked.
+
+# Python build, environment and test output.
+.venv/
+.venv-*/
+__pycache__/
+*.py[cod]
+*.egg-info/
+/host/build/
+/host/dist/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local editor/OS state.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

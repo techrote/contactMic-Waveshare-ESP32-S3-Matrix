@@ -4,9 +4,29 @@ A Bluetooth Low Energy contact/vibration microphone built around the Waveshare E
 
 ## Status
 
-Planning and implementation programme only. No firmware implementation has been accepted yet.
+CM-001 provides the ESP-IDF firmware skeleton, hardware-free native/host tests,
+and CI. **Microphone functionality is not implemented:** no sensor driver,
+acquisition, BLE service, DSP or audio output is present. Hardware performance
+remains unqualified until CM-007.
 
 The repository is deliberately issue-driven. Start with [RAG.md](RAG.md), then follow the logical issue programme in [docs/programme/IMPLEMENTATION-PROGRAMME.md](docs/programme/IMPLEMENTATION-PROGRAMME.md).
+
+## Developer quick start
+
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for a fresh-checkout setup,
+ESP-IDF **v5.5.5 / ESP32-S3** build, Python **3.11+** installation, native tests,
+and CI extension points. No attached hardware is needed for these checks.
+
+```sh
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install ./host
+python -m unittest discover -s host/tests -v
+contactmic --help
+```
+
+PowerShell activation and firmware/native commands are in the development guide.
+The CLI currently offers help/version only; it does not connect or stream.
 
 ## Target architecture
 
