@@ -22,6 +22,8 @@ struct cm_acq_idf {
     uint32_t running;
     uint32_t rate_active;
     uint32_t measurement_done;
+    portMUX_TYPE pending_lock;
+    uint64_t pending_edges;
     cm_acq_policy policy;
     cm_acq_mode mode;
     cm_acq_mode auto_ceiling;
@@ -75,16 +77,38 @@ static cm_acq_read_result read_selected(void *opaque, int16_t *sample)
 static void drdy_isr(void *opaque)
 {
     cm_acq_idf *ctx = (cm_acq_idf *)opaque;
+    portENTER_CRITICAL_ISR(&ctx->pending_lock);
+    if (ctx->pending_edges != UINT64_MAX) ++ctx->pending_edges;
+    portEXIT_CRITICAL_ISR(&ctx->pending_lock);
+
     BaseType_t wake = pdFALSE;
     vTaskNotifyGiveFromISR(ctx->task, &wake);
     if (wake == pdTRUE) portYIELD_FROM_ISR();
+}
+
+static void clear_pending(cm_acq_idf *ctx)
+{
+    portENTER_CRITICAL(&ctx->pending_lock);
+    ctx->pending_edges = 0u;
+    portEXIT_CRITICAL(&ctx->pending_lock);
+    if (ctx->task) clear_pending(ctx);
+}
+
+static uint64_t take_pending(cm_acq_idf *ctx)
+{
+    portENTER_CRITICAL(&ctx->pending_lock);
+    uint64_t edges = ctx->pending_edges;
+    ctx->pending_edges = 0u;
+    portEXIT_CRITICAL(&ctx->pending_lock);
+    return edges;
 }
 
 static void acquisition_task(void *opaque)
 {
     cm_acq_idf *ctx = (cm_acq_idf *)opaque;
     for (;;) {
-        uint32_t edges = ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(CM_ACQ_TASK_WAIT_MS));
+        (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(CM_ACQ_TASK_WAIT_MS));
+        uint64_t edges = take_pending(ctx);
         if (edges != 0u) {
             xSemaphoreTake(ctx->gate, portMAX_DELAY);
             if (load_flag(&ctx->running)) {
@@ -133,6 +157,7 @@ esp_err_t cm_acq_idf_create(cmq_device *device, cm_acq_idf **out)
     cm_acq_idf *ctx = calloc(1, sizeof(*ctx));
     if (!ctx) return ESP_ERR_NO_MEM;
     ctx->device = device;
+    portMUX_INITIALIZE(&ctx->pending_lock);
     if (cm_acq_init(&ctx->core, read_selected, ctx) != CM_ACQ_OK) {
         free(ctx);
         return ESP_FAIL;
@@ -229,7 +254,7 @@ esp_err_t cm_acq_idf_start(cm_acq_idf *ctx)
     store_flag(&ctx->running, 0u);
     store_flag(&ctx->rate_active, 0u);
     store_flag(&ctx->measurement_done, 0u);
-    (void)ulTaskNotifyValueClear(ctx->task, UINT32_MAX);
+    clear_pending(ctx);
 
     xSemaphoreTake(ctx->gate, portMAX_DELAY);
     cmq_result result = cmq_start(ctx->device);
@@ -253,7 +278,7 @@ esp_err_t cm_acq_idf_start(cm_acq_idf *ctx)
     ctx->rate_deadline_us = now + CM_ACQ_MEASURE_US;
     store_flag(&ctx->rate_active, 1u);
     store_flag(&ctx->running, 1u);
-    (void)ulTaskNotifyValueClear(ctx->task, UINT32_MAX);
+    clear_pending(ctx);
     xSemaphoreGive(ctx->gate);
 
     esp_err_t err = gpio_intr_enable((gpio_num_t)CMQ_INT2_GPIO);
@@ -280,7 +305,7 @@ esp_err_t cm_acq_idf_stop(cm_acq_idf *ctx)
          ctx->device->state == CMQ_FAULT)) {
         result = cmq_stop(ctx->device);
     }
-    if (ctx->task) (void)ulTaskNotifyValueClear(ctx->task, UINT32_MAX);
+    if (ctx->task) clear_pending(ctx);
     xSemaphoreGive(ctx->gate);
     return map_qmi(result);
 }

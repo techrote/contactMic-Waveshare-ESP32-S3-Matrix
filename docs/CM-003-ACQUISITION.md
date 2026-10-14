@@ -10,13 +10,16 @@ component and `cm_source`. No simulator result here is a claim about real-board
 ## Source timing and loss semantics
 
 The ESP-IDF adapter configures the accepted CM-002 driver with FIFO bypass and
-DRDY enabled on INT2 / GPIO13. The GPIO ISR performs only one task-notification
-increment and an optional scheduler wake. It performs no I2C, allocation, BLE, or
-queue manipulation.
+DRDY enabled on INT2 / GPIO13. The GPIO ISR performs only bounded recording/wakeup work: under the ESP-IDF
+FreeRTOS spinlock it saturating-increments a 64-bit pending-edge count, then gives
+the acquisition task a notification purely as a wake signal. It performs no I2C,
+allocation, BLE, or sample-queue manipulation. The separate edge accumulator is
+intentional because the pinned FreeRTOS eIncrement notification value itself is
+32-bit and wraps.
 
-The high-priority acquisition task drains the notification count. One notification
-means one source interval. If several DRDY notifications accumulated while the
-task was busy, only the newest data register value can be read truthfully. The
+The high-priority acquisition task atomically drains the pending-edge count after
+each wake or bounded timeout. If several DRDY edges accumulated while the task was
+busy, only the newest data register value can be read truthfully. The
 core therefore:
 
 1. adds all accumulated edges to `drdy_edges`;
@@ -68,7 +71,7 @@ QMI. Acquisition never waits for or calls BLE.
 ## Rate measurement
 
 After CM-002's sensor settling interval, each start opens a 250 ms measurement
-window. Serviced notification counts include accumulated DRDY edges, so batching
+window. Serviced pending-edge counts include accumulated DRDY edges, so batching
 does not make the edge total look artificially lower. Rate is reported in milli-Hz:
 
 `edge_delta * 1,000,000,000 / elapsed_microseconds`.

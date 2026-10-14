@@ -95,18 +95,18 @@ cm_acq_result cm_acq_stop_session(cm_acq *acq)
     return CM_ACQ_OK;
 }
 
-cm_acq_result cm_acq_service_edges(cm_acq *acq, uint32_t edges)
+cm_acq_result cm_acq_service_edges(cm_acq *acq, uint64_t edges)
 {
     if (!acq || !acq->read || edges == 0u) return CM_ACQ_INVALID;
     if (!LOAD32(&acq->running, __ATOMIC_ACQUIRE)) return CM_ACQ_STATE;
 
-    uint32_t sample_index = acq->next_index + (edges - 1u);
-    acq->next_index += edges;
+    uint32_t sample_index = acq->next_index + (uint32_t)(edges - 1u);
+    acq->next_index += (uint32_t)edges;
 
     counters_begin(acq);
     counter_add(&acq->counter_store.drdy_edges, edges);
     if (edges > 1u) {
-        counter_add(&acq->counter_store.inferred_missed_intervals, (uint64_t)edges - 1u);
+        counter_add(&acq->counter_store.inferred_missed_intervals, edges - 1u);
     }
     counters_end(acq);
 
