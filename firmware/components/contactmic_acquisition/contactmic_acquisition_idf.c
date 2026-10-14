@@ -108,14 +108,13 @@ static void acquisition_task(void *opaque)
     cm_acq_idf *ctx = (cm_acq_idf *)opaque;
     for (;;) {
         (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(CM_ACQ_TASK_WAIT_MS));
+
+        xSemaphoreTake(ctx->gate, portMAX_DELAY);
         uint64_t edges = take_pending(ctx);
-        if (edges != 0u) {
-            xSemaphoreTake(ctx->gate, portMAX_DELAY);
-            if (load_flag(&ctx->running)) {
-                (void)cm_acq_service_edges(&ctx->core, edges);
-            }
-            xSemaphoreGive(ctx->gate);
+        if (load_flag(&ctx->running) && edges != 0u) {
+            (void)cm_acq_service_edges(&ctx->core, edges);
         }
+        xSemaphoreGive(ctx->gate);
 
         if (load_flag(&ctx->running) && load_flag(&ctx->rate_active) &&
             (uint64_t)esp_timer_get_time() >= ctx->rate_deadline_us) {
@@ -293,11 +292,19 @@ esp_err_t cm_acq_idf_stop(cm_acq_idf *ctx)
 {
     if (!ctx) return ESP_ERR_INVALID_ARG;
     (void)gpio_intr_disable((gpio_num_t)CMQ_INT2_GPIO);
-    store_flag(&ctx->running, 0u);
-    store_flag(&ctx->rate_active, 0u);
 
     if (!ctx->gate) return ESP_OK;
     xSemaphoreTake(ctx->gate, portMAX_DELAY);
+    bool was_running = load_flag(&ctx->running) != 0u;
+    uint64_t pending = take_pending(ctx);
+    if (was_running && pending != 0u) {
+        /* Interrupts are disabled and no read will be attempted during stop.
+         * Preserve every observed interval as explicit source loss before the
+         * session-local index/ring are cleared. */
+        (void)cm_acq_discard_edges(&ctx->core, pending);
+    }
+    store_flag(&ctx->running, 0u);
+    store_flag(&ctx->rate_active, 0u);
     (void)cm_acq_stop_session(&ctx->core);
     cmq_result result = CMQ_OK;
     if (ctx->device &&
@@ -305,7 +312,7 @@ esp_err_t cm_acq_idf_stop(cm_acq_idf *ctx)
          ctx->device->state == CMQ_FAULT)) {
         result = cmq_stop(ctx->device);
     }
-    if (ctx->task) clear_pending(ctx);
+    clear_pending(ctx);
     xSemaphoreGive(ctx->gate);
     return map_qmi(result);
 }

@@ -133,6 +133,31 @@ static int test_index_wrap_and_saturation(void)
     return 0;
 }
 
+static int test_discarded_pending_edges(void)
+{
+    fake_reader reader = {0};
+    cm_acq acq;
+    cm_acq_sample sample;
+    CHECK(cm_acq_init(&acq, read_sample, &reader) == CM_ACQ_OK);
+    CHECK(cm_acq_start_session(&acq) == CM_ACQ_OK);
+    CHECK(cm_acq_service_edges(&acq, 1u) == CM_ACQ_OK);
+    CHECK(cm_acq_consume(&acq, 1u) == 1u);
+
+    CHECK(cm_acq_discard_edges(&acq, 3u) == CM_ACQ_OK);
+    CHECK(cm_acq_count(&acq) == 0u);
+    CHECK(cm_acq_service_edges(&acq, 1u) == CM_ACQ_OK);
+    CHECK(cm_acq_peek(&acq, 0u, &sample));
+    CHECK(sample.index == 4u);
+
+    cm_acq_counters counters;
+    cm_acq_snapshot(&acq, &counters);
+    CHECK(counters.drdy_edges == 5u);
+    CHECK(counters.successful_reads == 2u);
+    CHECK(counters.inferred_missed_intervals == 3u);
+    CHECK(cm_acq_discard_edges(&acq, 0u) == CM_ACQ_INVALID);
+    return 0;
+}
+
 static int test_rate_measurement(void)
 {
     fake_reader reader = {0};
@@ -217,6 +242,7 @@ int main(void)
     if ((rc = test_accumulated_edges_and_failures())) return rc;
     if ((rc = test_lifecycle_clears_stale_data())) return rc;
     if ((rc = test_index_wrap_and_saturation())) return rc;
+    if ((rc = test_discarded_pending_edges())) return rc;
     if ((rc = test_rate_measurement())) return rc;
     if ((rc = test_policy_state_machine())) return rc;
     if ((rc = test_stress())) return rc;

@@ -101,6 +101,7 @@ cm_acq_result cm_acq_init(cm_acq *acq, cm_acq_read_fn read, void *read_context);
 cm_acq_result cm_acq_start_session(cm_acq *acq);
 cm_acq_result cm_acq_stop_session(cm_acq *acq);
 cm_acq_result cm_acq_service_edges(cm_acq *acq, uint64_t accumulated_edges);
+cm_acq_result cm_acq_discard_edges(cm_acq *acq, uint64_t accumulated_edges);
 
 size_t cm_acq_count(const cm_acq *acq);
 bool cm_acq_peek(const cm_acq *acq, size_t offset, cm_acq_sample *sample);

@@ -62,7 +62,8 @@ Board probe/reset remain the board owner's responsibility. After those succeed:
    resets session-local queue/index state, starts the rate window, and enables the
    MCU interrupt.
 4. `cm_acq_idf_stop` disables the MCU interrupt before synchronizing with any
-   in-flight read, clears the queue, and stops the QMI through CM-002.
+   in-flight read. Pending observed edges are recorded as missed source intervals
+   before it clears the queue and stops the QMI through CM-002.
 5. A later start begins a fresh source-index origin with no stale queued samples.
 
 All sensor I/O is serialized by the acquisition adapter. The ISR never touches the
@@ -102,7 +103,7 @@ CM-007 supplies physical qualification evidence.
 - producer-overrun accounting;
 - accumulated-DRDY source-index discontinuities;
 - I2C and non-I2C read failures;
-- stop/restart stale-data clearing;
+- stop/restart stale-data clearing and stop-time pending-edge accounting;
 - u32 source-index wrap and u64 counter saturation;
 - deterministic rate windows;
 - high -> medium -> safe AUTO transitions and transport ceilings;

@@ -138,6 +138,19 @@ cm_acq_result cm_acq_service_edges(cm_acq *acq, uint64_t edges)
     return CM_ACQ_OK;
 }
 
+cm_acq_result cm_acq_discard_edges(cm_acq *acq, uint64_t edges)
+{
+    if (!acq || edges == 0u) return CM_ACQ_INVALID;
+    if (!LOAD32(&acq->running, __ATOMIC_ACQUIRE)) return CM_ACQ_STATE;
+
+    acq->next_index += (uint32_t)edges;
+    counters_begin(acq);
+    counter_add(&acq->counter_store.drdy_edges, edges);
+    counter_add(&acq->counter_store.inferred_missed_intervals, edges);
+    counters_end(acq);
+    return CM_ACQ_OK;
+}
+
 size_t cm_acq_count(const cm_acq *acq)
 {
     if (!acq) return 0u;
