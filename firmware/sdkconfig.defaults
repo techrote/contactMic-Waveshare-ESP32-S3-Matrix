@@ -1,4 +1,7 @@
-# Board-specific tuning and active peripherals belong to later issues.
 CONFIG_IDF_TARGET="esp32s3"
-# CONFIG_BT_ENABLED is not set
+CONFIG_BT_ENABLED=y
+# CONFIG_BT_BLUEDROID_ENABLED is not set
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=247
 # CONFIG_SPIRAM is not set

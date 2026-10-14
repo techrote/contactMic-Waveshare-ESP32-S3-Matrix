@@ -4,10 +4,13 @@ A Bluetooth Low Energy contact/vibration microphone built around the Waveshare E
 
 ## Status
 
-CM-001 provides the ESP-IDF firmware skeleton, hardware-free native/host tests,
-and CI. **Microphone functionality is not implemented:** no sensor driver,
-acquisition, BLE service, DSP or audio output is present. Hardware performance
-remains unqualified until CM-007.
+CM-001 provides the build/test foundation; CM-002 provides the QMI8658C driver.
+CM-004 provides the versioned custom GATT service and nonblocking transport.
+**The microphone is not integrated yet:** the app advertises with no acquisition
+source and rejects stream starts rather than emitting synthetic audio. The host
+CLI is still a foundation until CM-005. Real acquisition and end-to-end wiring
+belong to CM-003/CM-006; physical performance remains unqualified until CM-007.
+See [the wire/transport implementation](docs/CM-004-WIRE-V1.md) for exact behavior.
 
 The repository is deliberately issue-driven. Start with [RAG.md](RAG.md), then follow the logical issue programme in [docs/programme/IMPLEMENTATION-PROGRAMME.md](docs/programme/IMPLEMENTATION-PROGRAMME.md).
 

@@ -31,6 +31,18 @@ foreach(language IN ITEMS c cpp)
     add_test(NAME native.headers_${language} COMMAND headers_${language})
 endforeach()
 
+add_executable(protocol_transport protocol_transport.c
+    ../../firmware/components/contactmic_protocol/contactmic_protocol.c
+    ../../firmware/components/contactmic_ble/contactmic_transport.c)
+target_link_libraries(protocol_transport PRIVATE contactmic_headers)
+target_compile_definitions(protocol_transport PRIVATE VECTOR_DIR="${CMAKE_CURRENT_LIST_DIR}/../vectors/v1")
+if(MSVC)
+    target_compile_options(protocol_transport PRIVATE /W4 /WX)
+else()
+    target_compile_options(protocol_transport PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME native.protocol_transport COMMAND protocol_transport)
+
 add_executable(qmi_driver qmi_driver.c
     ../../firmware/components/contactmic_board/contactmic_board.c)
 target_link_libraries(qmi_driver PRIVATE contactmic_headers)
