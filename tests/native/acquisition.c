@@ -53,7 +53,7 @@ static int test_ring_and_overflow(void)
 
 static int test_accumulated_edges_and_failures(void)
 {
-    fake_reader reader = {10};
+    fake_reader reader = {.value = 10, .next_result = CM_ACQ_READ_OK};
     cm_acq acq;
     CHECK(cm_acq_init(&acq, read_sample, &reader) == CM_ACQ_OK);
     CHECK(cm_acq_start_session(&acq) == CM_ACQ_OK);
