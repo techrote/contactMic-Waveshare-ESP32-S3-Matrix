@@ -141,10 +141,14 @@ cm_acq_result cm_acq_service_edges(cm_acq *acq, uint64_t edges)
 size_t cm_acq_count(const cm_acq *acq)
 {
     if (!acq) return 0u;
-    uint32_t head = LOAD32(&acq->ring.head, __ATOMIC_ACQUIRE);
+    /* Read the consumer-owned tail first. If either side advances between
+     * loads, this can overestimate only by newly produced entries; it cannot
+     * observe a newer tail paired with an older head and manufacture a huge
+     * unsigned distance. */
     uint32_t tail = LOAD32(&acq->ring.tail, __ATOMIC_ACQUIRE);
+    uint32_t head = LOAD32(&acq->ring.head, __ATOMIC_ACQUIRE);
     uint32_t count = head - tail;
-    return count > CM_ACQ_RING_CAPACITY ? CM_ACQ_RING_CAPACITY : (size_t)count;
+    return count <= CM_ACQ_RING_CAPACITY ? (size_t)count : 0u;
 }
 
 bool cm_acq_peek(const cm_acq *acq, size_t offset, cm_acq_sample *sample)
