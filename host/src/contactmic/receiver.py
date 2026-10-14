@@ -1,11 +1,12 @@
 """BLE session owner with bounded callback ingress and one serialized DSP worker."""
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, asdict
 import asyncio
 import math
 import threading
 import time
+from typing import TypeVar
 
 from .protocol import (AXES, POLICIES, SERVICE_UUID, AUDIO_UUID, CONTROL_UUID,
                        STATUS_UUID, NAME_PREFIX, ProtocolError, Status,
@@ -15,6 +16,20 @@ from .dsp import Pipeline, valid_rate
 
 class ReceiverError(RuntimeError):
     """A device, transport, protocol-session or output error with operator context."""
+
+
+_T = TypeVar("_T")
+
+
+async def _bounded_await(operation: Awaitable[_T], seconds: float) -> _T:
+    """Keep I/O in its owner task so completion cannot swallow cancellation.
+
+    Python 3.11's wait_for races a separate waiter against completion and may
+    return a completed result instead of propagating an external cancellation
+    (CPython #86296). timeout is available in 3.11 and does not add that waiter.
+    """
+    async with asyncio.timeout(seconds):
+        return await operation
 
 
 def bleak_api():
@@ -32,7 +47,7 @@ async def discover(timeout: float = 5, *, scanner=None) -> list:
     if scanner is None:
         _, scanner = bleak_api()
     try:
-        found = await asyncio.wait_for(scanner.discover(timeout=timeout, return_adv=True), timeout + 5)
+        found = await _bounded_await(scanner.discover(timeout=timeout, return_adv=True), timeout + 5)
     except Exception as exc:
         raise ReceiverError(f"BLE discovery failed; check adapter power/permissions: {exc}") from exc
     return [device for device, advertisement in found.values()
@@ -149,8 +164,8 @@ class Receiver:
             self._request_id = (self._request_id + 1) & 0xffff
             request_id = self._request_id
             data = control_request(opcode, request_id, value)
-            await asyncio.wait_for(client.write_gatt_char(CONTROL_UUID, data, response=True), self.config.io_timeout)
-            reply = await asyncio.wait_for(client.read_gatt_char(CONTROL_UUID), self.config.io_timeout)
+            await _bounded_await(client.write_gatt_char(CONTROL_UUID, data, response=True), self.config.io_timeout)
+            reply = await _bounded_await(client.read_gatt_char(CONTROL_UUID), self.config.io_timeout)
             result, payload = control_response(reply, opcode, request_id)
             if result and not (allow_busy and result == 4):
                 names = {1: "invalid value", 2: "unsupported/source unavailable", 3: "invalid session state",
@@ -262,7 +277,7 @@ class Receiver:
             if client_factory is None:
                 client_factory, _ = bleak_api()
             client = client_factory(device, disconnected_callback=on_disconnect, timeout=self.config.io_timeout)
-            await asyncio.wait_for(client.connect(), self.config.io_timeout)
+            await _bounded_await(client.connect(), self.config.io_timeout)
             _, caps = await self._control(client, 1)
             if len(caps) != 8 or caps[:2] != b"\x01\x01" or caps[5] & 3 != 3:
                 raise ReceiverError("Firmware does not support the v1 prepare/commit session contract")
@@ -270,7 +285,7 @@ class Receiver:
                 raise ReceiverError("Firmware has no acquisition source adapter; CM-006 integration is required before audio")
             for opcode, value in ((3, AXES[self.config.axis]), (4, self.config.range_g), (5, POLICIES[self.config.policy])):
                 await self._control(client, opcode, value)
-            await asyncio.wait_for(client.start_notify(STATUS_UUID, status_callback), self.config.io_timeout)
+            await _bounded_await(client.start_notify(STATUS_UUID, status_callback), self.config.io_timeout)
             status_subscribed = True
             deadline = loop.time() + self.config.prepare_timeout
             while True:
@@ -290,7 +305,7 @@ class Receiver:
             self.status = session
             self.last_valid_packet = time.monotonic()
             worker = asyncio.create_task(consume())
-            await asyncio.wait_for(client.start_notify(AUDIO_UUID, audio_callback), self.config.io_timeout)
+            await _bounded_await(client.start_notify(AUDIO_UUID, audio_callback), self.config.io_timeout)
             audio_subscribed = True
             _, payload = await self._control(client, 9, session.session_id)
             self.status = decode_status(payload)
@@ -310,7 +325,7 @@ class Receiver:
                 if time.monotonic() - self.last_valid_packet > self.config.idle_timeout:
                     raise ReceiverError("No valid audio within the idle timeout; check source and BLE capacity")
                 if loop.time() >= next_report:
-                    observed = decode_status(await asyncio.wait_for(client.read_gatt_char(STATUS_UUID), self.config.io_timeout))
+                    observed = decode_status(await _bounded_await(client.read_gatt_char(STATUS_UUID), self.config.io_timeout))
                     if (observed.session_id, observed.rate_millihz, observed.descriptor, observed.state) != (
                         session.session_id, session.rate_millihz, session.descriptor, 2):
                         raise ReceiverError("Firmware stopped or changed the active session; reconnect required")
@@ -350,11 +365,11 @@ class Receiver:
                     for uuid, subscribed in ((AUDIO_UUID, audio_subscribed), (STATUS_UUID, status_subscribed)):
                         if subscribed:
                             try:
-                                await asyncio.wait_for(client.stop_notify(uuid), self.config.io_timeout)
+                                await _bounded_await(client.stop_notify(uuid), self.config.io_timeout)
                             except Exception as exc:
                                 self.cleanup_errors.append(f"unsubscribe: {exc}")
                 try:
-                    await asyncio.wait_for(client.disconnect(), self.config.io_timeout)
+                    await _bounded_await(client.disconnect(), self.config.io_timeout)
                 except Exception as exc:
                     self.cleanup_errors.append(f"disconnect: {exc}")
             self._running = False
