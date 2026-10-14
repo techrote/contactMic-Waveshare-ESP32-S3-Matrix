@@ -52,3 +52,13 @@ else()
     target_compile_options(qmi_driver PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 add_test(NAME native.qmi_driver COMMAND qmi_driver)
+
+add_executable(acquisition acquisition.c
+    ../../firmware/components/contactmic_acquisition/contactmic_acquisition.c)
+target_link_libraries(acquisition PRIVATE contactmic_headers)
+if(MSVC)
+    target_compile_options(acquisition PRIVATE /W4 /WX)
+else()
+    target_compile_options(acquisition PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME native.acquisition COMMAND acquisition)

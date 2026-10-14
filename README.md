@@ -6,14 +6,16 @@ Waveshare ESP32-S3-Matrix and its onboard QMI8658C IMU.
 ## Status
 
 Implemented software components: the CM-001 foundation, CM-002 QMI8658C driver,
-CM-004 GATT transport and CM-005 Python receiver/audio bridge.
+CM-003 deterministic acquisition, CM-004 GATT transport and CM-005 Python
+receiver/audio bridge.
 
-**This is not yet an integrated working microphone.** The firmware app advertises
-its service but has no acquisition source attached and rejects stream starts.
-CM-003 implements deterministic DRDY acquisition; CM-006 connects and qualifies
-the complete software path. Real-board performance and production defaults remain
-CM-007, followed by CM-008 release acceptance. No synthetic samples substitute for
-missing hardware or unimplemented acquisition.
+**This is not yet an integrated working microphone.** CM-003 now provides the
+GPIO13 DRDY task, bounded indexed sample ring, explicit source-loss accounting and
+measured-rate/policy machinery, but the firmware app still advertises with no
+acquisition source attached. CM-006 connects and qualifies the complete software
+path. Real-board performance and production defaults remain CM-007, followed by
+CM-008 release acceptance. No synthetic samples substitute for missing hardware
+or unimplemented integration.
 
 ## Developer quick start
 
@@ -30,7 +32,7 @@ contactmic audio-devices
 ```
 
 Tests require no devices. Discovery and audio-device listing require their
-respective OS backends. Stream commands will need integrated source firmware:
+respective OS backends. Stream commands will need CM-006 integrated firmware:
 
 ```sh
 contactmic diagnostics --policy safe --duration 30
@@ -70,6 +72,7 @@ in [the RAG index](RAG.md).
 | Document | Contents |
 | --- | --- |
 | [Driver](docs/CM-002-DRIVER.md) | Register policy, vendor discrepancies, lifecycle and timing preconditions |
+| [Acquisition](docs/CM-003-ACQUISITION.md) | ISR/task ownership, source-index gaps, bounded ring, measured rate and policy |
 | [Wire/transport](docs/CM-004-WIRE-V1.md) | V1 bytes, shared vectors, session handshake and nonblocking ownership |
 | [Host](docs/CM-005-HOST.md) | Receiver, DSP, bounded output, WAV, diagnostics and CLI |
 | [Programme](docs/programme/IMPLEMENTATION-PROGRAMME.md) | Issue dependencies and acceptance sequence |
