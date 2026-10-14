@@ -30,3 +30,13 @@ foreach(language IN ITEMS c cpp)
     endif()
     add_test(NAME native.headers_${language} COMMAND headers_${language})
 endforeach()
+
+add_executable(qmi_driver qmi_driver.c
+    ../../firmware/components/contactmic_board/contactmic_board.c)
+target_link_libraries(qmi_driver PRIVATE contactmic_headers)
+if(MSVC)
+    target_compile_options(qmi_driver PRIVATE /W4 /WX)
+else()
+    target_compile_options(qmi_driver PRIVATE -Wall -Wextra -Wpedantic -Werror)
+endif()
+add_test(NAME native.qmi_driver COMMAND qmi_driver)
