@@ -81,7 +81,7 @@ Alternatively, with Docker available, from the repository root in Bash:
 
 ```sh
 docker run --rm -v "$PWD:/project" -w /project espressif/idf:v5.5.5 \
-  /bin/bash -lc 'idf.py -C firmware set-target esp32s3 && idf.py -C firmware build'
+  /bin/bash -c 'idf.py -C firmware set-target esp32s3 && idf.py -C firmware build'
 ```
 
 The official [IDF Docker image](https://docs.espressif.com/projects/esp-idf/en/v5.5.5/esp32s3/api-guides/tools/idf-docker-image.html)
@@ -155,7 +155,7 @@ Release builds too; do not rely solely on C `assert` compiled out by `NDEBUG`.
 `.github/workflows/ci.yml` runs on every PR update and on pushes to `main`. Feature
 branch pushes do not create duplicate runs. Five checks run from clean checkouts:
 workflow syntax (actionlint v1.7.7), firmware build, native/tooling tests, and host
-installation/tests on each of the two Python versions. Workflow/step timeouts and
+installation/tests on each of the two Python versions. Job timeouts and
 per-PR concurrency bound resource use. No artifact upload or persistent cache is
 configured; generated files stay on disposable runners. Action revisions are
 SHA-pinned. The firmware version is independently checked by CMake.
