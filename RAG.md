@@ -15,6 +15,13 @@ This file is the retrieval map for agents working in this repository. Read it af
 | `docs/rag/06-VERIFICATION-AND-CI.md` | Automated test layers, hardware qualification and CI gates |
 | `docs/rag/07-EXECUTION-PROTOCOL.md` | Issue/PR execution workflow and completion evidence |
 
+## Implementation details
+
+- `docs/CM-002-DRIVER.md`: register policy, vendor discrepancies and driver lifecycle.
+- `docs/CM-004-WIRE-V1.md`: exact descriptor/control/status bytes, session handshake,
+  nonblocking source interface and canonical vectors. Completes previously unspecified
+  v1 fields without changing the fixed RAG audio layout.
+
 ## Programme
 
 `docs/programme/IMPLEMENTATION-PROGRAMME.md` defines logical task IDs, dependencies, parallel lanes and the acceptance sequence.
