@@ -5,6 +5,9 @@
 #define LOAD32(p, order) __atomic_load_n((p), (order))
 #define STORE32(p, v, order) __atomic_store_n((p), (v), (order))
 
+_Static_assert((CM_ACQ_RING_CAPACITY & (CM_ACQ_RING_CAPACITY - 1u)) == 0u,
+               "CM_ACQ_RING_CAPACITY must be a power of two");
+
 static uint64_t sat_add(uint64_t value, uint64_t increment)
 {
     return UINT64_MAX - value < increment ? UINT64_MAX : value + increment;

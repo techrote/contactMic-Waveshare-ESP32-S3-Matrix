@@ -109,6 +109,9 @@ static void acquisition_task(void *opaque)
 
 static esp_err_t configure_mode(cm_acq_idf *ctx, cm_acq_mode mode)
 {
+    /* A failed register transaction leaves CM-002 in FAULT; do not retain a
+     * stale software claim that this adapter is configured. */
+    ctx->configured = false;
     cmq_config config = {
         .axis = ctx->axis,
         .mode = qmi_mode(mode),
