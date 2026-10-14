@@ -18,6 +18,8 @@ This file is the retrieval map for agents working in this repository. Read it af
 ## Implementation details
 
 - `docs/CM-002-DRIVER.md`: register policy, vendor discrepancies and driver lifecycle.
+- `docs/CM-003-ACQUISITION.md`: DRDY/task ownership, bounded SPSC ring, source-index
+  gap semantics, measured-rate window and explicit rate-policy transitions.
 - `docs/CM-004-WIRE-V1.md`: exact descriptor/control/status bytes, session handshake,
   nonblocking source interface and canonical vectors. Completes previously unspecified
   v1 fields without changing the fixed RAG audio layout.
