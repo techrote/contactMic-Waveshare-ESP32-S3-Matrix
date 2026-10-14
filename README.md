@@ -1,84 +1,85 @@
 # contactMic-Waveshare-ESP32-S3-Matrix
 
-A Bluetooth Low Energy contact/vibration microphone built around the Waveshare ESP32-S3-Matrix and its onboard QMI8658 IMU.
+A custom Bluetooth Low Energy contact/vibration microphone project for the
+Waveshare ESP32-S3-Matrix and its onboard QMI8658C IMU.
 
 ## Status
 
-CM-001 provides the build/test foundation; CM-002 provides the QMI8658C driver.
-CM-004 provides the versioned custom GATT service and nonblocking transport.
-**The microphone is not integrated yet:** the app advertises with no acquisition
-source and rejects stream starts rather than emitting synthetic audio. The host
-CLI is still a foundation until CM-005. Real acquisition and end-to-end wiring
-belong to CM-003/CM-006; physical performance remains unqualified until CM-007.
-See [the wire/transport implementation](docs/CM-004-WIRE-V1.md) for exact behavior.
+Implemented software components: the CM-001 foundation, CM-002 QMI8658C driver,
+CM-004 GATT transport and CM-005 Python receiver/audio bridge.
 
-The repository is deliberately issue-driven. Start with [RAG.md](RAG.md), then follow the logical issue programme in [docs/programme/IMPLEMENTATION-PROGRAMME.md](docs/programme/IMPLEMENTATION-PROGRAMME.md).
+**This is not yet an integrated working microphone.** The firmware app advertises
+its service but has no acquisition source attached and rejects stream starts.
+CM-003 implements deterministic DRDY acquisition; CM-006 connects and qualifies
+the complete software path. Real-board performance and production defaults remain
+CM-007, followed by CM-008 release acceptance. No synthetic samples substitute for
+missing hardware or unimplemented acquisition.
 
 ## Developer quick start
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for a fresh-checkout setup,
-ESP-IDF **v5.5.5 / ESP32-S3** build, Python **3.11+** installation, native tests,
-and CI extension points. No attached hardware is needed for these checks.
+Use Python 3.11+ from the repository root:
 
 ```sh
 python -m venv .venv
 . .venv/bin/activate
-python -m pip install ./host
+python -m pip install './host[ble,audio]'
 python -m unittest discover -s host/tests -v
 contactmic --help
+contactmic discover
+contactmic audio-devices
 ```
 
-PowerShell activation and firmware/native commands are in the development guide.
-The CLI currently offers help/version only; it does not connect or stream.
+Tests require no devices. Discovery and audio-device listing require their
+respective OS backends. Stream commands will need integrated source firmware:
 
-## Target architecture
+```sh
+contactmic diagnostics --policy safe --duration 30
+contactmic monitor --axis z --range 2 --policy safe --gain 4
+contactmic record capture.wav --duration 30
+```
+
+See [development instructions](docs/DEVELOPMENT.md) for the pinned **ESP-IDF
+v5.5.5 / ESP32-S3** build and native tests. See [host instructions](docs/CM-005-HOST.md)
+for Windows setup, output selection, diagnostic counters, recording limitations
+and virtual-audio-cable routing.
+
+## Architecture and limits
 
 ```text
-QMI8658C accelerometer
-        |
-        | onboard I2C + DRDY
-        v
-ESP32-S3 acquisition pipeline
-        |
-        | custom BLE GATT notifications
-        v
-PC receiver
-        |
-        | decode -> DC removal -> gain -> resample
-        v
-48 kHz audio output / virtual-audio-cable input
+QMI8658C -> single-axis DRDY acquisition -> bounded sample source
+  -> custom BLE GATT notifications -> PC receiver
+  -> loss accounting / DC removal / gain / stateful resampling
+  -> 48 kHz mono live output or WAV
 ```
 
-This is **not** a Bluetooth Classic HFP microphone and is **not** Bluetooth LE Audio. ESP32-S3 supports Bluetooth LE, but not Bluetooth Classic, and Espressif does not provide LE Audio/ISO support for ESP32-S3. The project therefore uses a versioned custom GATT transport and a host bridge.
+This is **not Bluetooth Classic HFP/HSP, LE Audio, or a native OS Bluetooth
+microphone endpoint**. Applications expecting a microphone can receive the host
+bridge through a separately installed virtual audio cable.
 
-## Important hardware qualification
+High rate is a candidate, not a guaranteed literal 8000 Hz mode. The QMI8658C
+Rev-A high/medium/safe candidates are nominal 7174.4 / 3587.2 / 896.8 Hz in 6DOF
+mode. The gyroscope must be enabled although its samples are not audio payload.
+Actual measured source rate is carried in protocol metadata. The stock board's
+I2C interface is limited to 400 kHz; single-axis two-byte reads and explicit loss
+accounting are essential. Source/transport/host loss is never silently erased to
+make the stream look reliable. Primary sources and the hardware contract remain
+in [the RAG index](RAG.md).
 
-The QMI8658C Rev-A datasheet does not provide a literal 8,000 Hz accelerometer-only mode for this use. Its highest 6DOF ODR is nominally 7174.4 Hz and the accelerometer bandwidth is about 1973 Hz at that setting. That mode requires the gyroscope to be enabled.
+## Implementation references
 
-The Waveshare schematic wires the QMI8658 over I2C:
-
-- SDA: GPIO11
-- SCL: GPIO12
-- INT1: GPIO10
-- INT2: GPIO13
-
-QMI8658C I2C is specified to 400 kHz. The implementation programme therefore treats high-rate operation as a measured qualification target, not an assumption. The preferred path is direct single-axis accelerometer reads on DRDY; the design must count missed source intervals and support a lower-rate fallback if the board cannot sustain the highest ODR reliably.
-
-## Authoritative references
-
-See [docs/rag/00-SOURCES.md](docs/rag/00-SOURCES.md). Primary upstream sources are the Waveshare board documentation and schematic, the QST QMI8658C Rev-A datasheet, and Espressif ESP-IDF documentation.
+| Document | Contents |
+| --- | --- |
+| [Driver](docs/CM-002-DRIVER.md) | Register policy, vendor discrepancies, lifecycle and timing preconditions |
+| [Wire/transport](docs/CM-004-WIRE-V1.md) | V1 bytes, shared vectors, session handshake and nonblocking ownership |
+| [Host](docs/CM-005-HOST.md) | Receiver, DSP, bounded output, WAV, diagnostics and CLI |
+| [Programme](docs/programme/IMPLEMENTATION-PROGRAMME.md) | Issue dependencies and acceptance sequence |
 
 ## Agent execution
 
-Every implementation issue is written as a complete execution handoff. Agents must:
-
-1. reconcile current repository/issue/PR state before editing;
-2. read `AGENTS.md`, `RAG.md`, and the issue-specific RAG documents;
-3. implement only the issue scope;
-4. run local checks;
-5. push a dedicated branch and open a PR;
-6. monitor CI without tight-polling — **wait at least 120 seconds between CI status checks**;
-7. repair failures, then merge only after all required automated checks are green;
-8. perform post-merge verification and close the issue only when its acceptance evidence is recorded.
-
-See [AGENTS.md](AGENTS.md) for the exact execution protocol.
+Read [AGENTS.md](AGENTS.md), [RAG.md](RAG.md), the complete issue and its comments.
+Reconcile current main, branches, PRs and CI; preserve existing work; implement
+only the active issue. Use a dedicated PR, verify available local tests, repair
+CI failures, and merge only the current reviewed head with all required checks
+green. Pending/running CI queries must be at least **120 seconds apart**, including
+post-merge verification. Record exact acceptance evidence; hardware-required
+issues cannot be accepted without actual physical measurements.

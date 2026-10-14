@@ -5,10 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "contactmic-host"
 dynamic = ["version"]
-description = "Host bridge foundation for the Waveshare ESP32-S3 contact microphone"
+description = "Custom BLE receiver and 48 kHz host audio bridge for ContactMic"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
+
+[project.optional-dependencies]
+ble = ["bleak>=1.1,<4"]
+audio = ["sounddevice>=0.5,<1"]
 
 [project.scripts]
 contactmic = "contactmic.cli:main"
