@@ -44,6 +44,13 @@ static void store_flag(uint32_t *flag, uint32_t value)
     __atomic_store_n(flag, value, __ATOMIC_RELEASE);
 }
 
+static void invalidate_measurement(cm_acq_idf *ctx)
+{
+    store_flag(&ctx->rate_active, 0u);
+    store_flag(&ctx->measurement_done, 0u);
+    __atomic_store_n(&ctx->core.measured_rate_millihz, 0u, __ATOMIC_RELEASE);
+}
+
 static esp_err_t map_qmi(cmq_result result)
 {
     switch (result) {
@@ -241,9 +248,7 @@ esp_err_t cm_acq_idf_configure(cm_acq_idf *ctx, cm_acq_policy policy,
     ctx->range_g = range_g;
     /* A changed source configuration makes any prior session's measured rate
      * stale immediately, before a new start/measurement window exists. */
-    store_flag(&ctx->rate_active, 0u);
-    store_flag(&ctx->measurement_done, 0u);
-    __atomic_store_n(&ctx->core.measured_rate_millihz, 0u, __ATOMIC_RELEASE);
+    invalidate_measurement(ctx);
     esp_err_t err = configure_mode(ctx, selected);
     xSemaphoreGive(ctx->gate);
     return err;
@@ -343,6 +348,7 @@ esp_err_t cm_acq_idf_transition(cm_acq_idf *ctx, bool degrade,
     }
 
     xSemaphoreTake(ctx->gate, portMAX_DELAY);
+    invalidate_measurement(ctx);
     esp_err_t err = configure_mode(ctx, next);
     xSemaphoreGive(ctx->gate);
     if (err != ESP_OK) return err;
