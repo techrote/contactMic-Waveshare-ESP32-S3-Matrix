@@ -1,0 +1,4 @@
+# Board-specific tuning and active peripherals belong to later issues.
+CONFIG_IDF_TARGET="esp32s3"
+# CONFIG_BT_ENABLED is not set
+# CONFIG_SPIRAM is not set
