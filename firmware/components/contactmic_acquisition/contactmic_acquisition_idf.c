@@ -239,6 +239,11 @@ esp_err_t cm_acq_idf_configure(cm_acq_idf *ctx, cm_acq_policy policy,
     ctx->auto_ceiling = auto_ceiling;
     ctx->axis = axis;
     ctx->range_g = range_g;
+    /* A changed source configuration makes any prior session's measured rate
+     * stale immediately, before a new start/measurement window exists. */
+    store_flag(&ctx->rate_active, 0u);
+    store_flag(&ctx->measurement_done, 0u);
+    __atomic_store_n(&ctx->core.measured_rate_millihz, 0u, __ATOMIC_RELEASE);
     esp_err_t err = configure_mode(ctx, selected);
     xSemaphoreGive(ctx->gate);
     return err;
@@ -258,6 +263,9 @@ esp_err_t cm_acq_idf_start(cm_acq_idf *ctx)
     xSemaphoreTake(ctx->gate, portMAX_DELAY);
     cmq_result result = cmq_start(ctx->device);
     if (result != CMQ_OK) {
+        /* CM-002 start failures may latch FAULT. Require explicit recovery and
+         * configuration rather than advertising stale readiness. */
+        ctx->configured = false;
         xSemaphoreGive(ctx->gate);
         return map_qmi(result);
     }
