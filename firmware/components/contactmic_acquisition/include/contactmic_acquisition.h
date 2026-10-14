@@ -55,6 +55,18 @@ typedef struct {
 
 typedef cm_acq_read_result (*cm_acq_read_fn)(void *context, int16_t *sample);
 
+/* Internal 64-bit counters are split into atomic 32-bit words so snapshotting
+ * is well-defined on the ESP32-S3 without requiring 64-bit atomic runtime calls. */
+typedef struct { uint32_t low, high; } cm_acq_counter64_storage;
+typedef struct {
+    cm_acq_counter64_storage drdy_edges;
+    cm_acq_counter64_storage successful_reads;
+    cm_acq_counter64_storage inferred_missed_intervals;
+    cm_acq_counter64_storage i2c_failures;
+    cm_acq_counter64_storage source_faults;
+    cm_acq_counter64_storage ring_overruns;
+} cm_acq_counter_storage;
+
 typedef struct {
     cm_acq_sample slots[CM_ACQ_RING_CAPACITY];
     uint32_t head;
@@ -65,7 +77,7 @@ typedef struct {
     void *read_context;
     cm_acq_read_fn read;
     cm_acq_ring ring;
-    cm_acq_counters counters;
+    cm_acq_counter_storage counter_store;
     uint32_t counter_seq;
     uint32_t next_index;
     uint32_t measured_rate_millihz;

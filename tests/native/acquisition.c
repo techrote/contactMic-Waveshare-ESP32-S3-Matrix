@@ -126,8 +126,10 @@ static int test_index_wrap_and_saturation(void)
     CHECK(counters.drdy_edges == (uint64_t)UINT32_MAX + 2u);
     CHECK(counters.inferred_missed_intervals == (uint64_t)UINT32_MAX);
 
-    acq.counters.drdy_edges = UINT64_MAX - 1u;
-    acq.counters.inferred_missed_intervals = UINT64_MAX - 1u;
+    acq.counter_store.drdy_edges.low = UINT32_MAX - 1u;
+    acq.counter_store.drdy_edges.high = UINT32_MAX;
+    acq.counter_store.inferred_missed_intervals.low = UINT32_MAX - 1u;
+    acq.counter_store.inferred_missed_intervals.high = UINT32_MAX;
     reader.next_result = CM_ACQ_READ_IO;
     CHECK(cm_acq_service_edges(&acq, 3u) == CM_ACQ_IO);
     cm_acq_snapshot(&acq, &counters);

@@ -13,6 +13,24 @@ static uint64_t sat_add(uint64_t value, uint64_t increment)
     return UINT64_MAX - value < increment ? UINT64_MAX : value + increment;
 }
 
+static uint64_t counter_load(const cm_acq_counter64_storage *counter)
+{
+    uint32_t low = LOAD32(&counter->low, __ATOMIC_RELAXED);
+    uint32_t high = LOAD32(&counter->high, __ATOMIC_RELAXED);
+    return ((uint64_t)high << 32) | low;
+}
+
+static void counter_store(cm_acq_counter64_storage *counter, uint64_t value)
+{
+    STORE32(&counter->low, (uint32_t)value, __ATOMIC_RELAXED);
+    STORE32(&counter->high, (uint32_t)(value >> 32), __ATOMIC_RELAXED);
+}
+
+static void counter_add(cm_acq_counter64_storage *counter, uint64_t increment)
+{
+    counter_store(counter, sat_add(counter_load(counter), increment));
+}
+
 static void counters_begin(cm_acq *acq)
 {
     (void)__atomic_add_fetch(&acq->counter_seq, 1u, __ATOMIC_ACQ_REL);
@@ -86,10 +104,9 @@ cm_acq_result cm_acq_service_edges(cm_acq *acq, uint32_t edges)
     acq->next_index += edges;
 
     counters_begin(acq);
-    acq->counters.drdy_edges = sat_add(acq->counters.drdy_edges, edges);
+    counter_add(&acq->counter_store.drdy_edges, edges);
     if (edges > 1u) {
-        acq->counters.inferred_missed_intervals =
-            sat_add(acq->counters.inferred_missed_intervals, (uint64_t)edges - 1u);
+        counter_add(&acq->counter_store.inferred_missed_intervals, (uint64_t)edges - 1u);
     }
     counters_end(acq);
 
@@ -97,25 +114,24 @@ cm_acq_result cm_acq_service_edges(cm_acq *acq, uint32_t edges)
     cm_acq_read_result read_result = acq->read(acq->read_context, &value);
     if (read_result != CM_ACQ_READ_OK) {
         counters_begin(acq);
-        acq->counters.inferred_missed_intervals =
-            sat_add(acq->counters.inferred_missed_intervals, 1u);
+        counter_add(&acq->counter_store.inferred_missed_intervals, 1u);
         if (read_result == CM_ACQ_READ_IO) {
-            acq->counters.i2c_failures = sat_add(acq->counters.i2c_failures, 1u);
+            counter_add(&acq->counter_store.i2c_failures, 1u);
         } else {
-            acq->counters.source_faults = sat_add(acq->counters.source_faults, 1u);
+            counter_add(&acq->counter_store.source_faults, 1u);
         }
         counters_end(acq);
         return read_result == CM_ACQ_READ_IO ? CM_ACQ_IO : CM_ACQ_SOURCE_FAULT;
     }
 
     counters_begin(acq);
-    acq->counters.successful_reads = sat_add(acq->counters.successful_reads, 1u);
+    counter_add(&acq->counter_store.successful_reads, 1u);
     counters_end(acq);
 
     cm_acq_sample sample = {sample_index, value};
     if (!ring_push(acq, sample)) {
         counters_begin(acq);
-        acq->counters.ring_overruns = sat_add(acq->counters.ring_overruns, 1u);
+        counter_add(&acq->counter_store.ring_overruns, 1u);
         counters_end(acq);
         return CM_ACQ_RING_FULL;
     }
@@ -164,7 +180,15 @@ void cm_acq_snapshot(const cm_acq *acq, cm_acq_counters *out)
     for (;;) {
         uint32_t before = LOAD32(&acq->counter_seq, __ATOMIC_ACQUIRE);
         if (before & 1u) continue;
-        cm_acq_counters copy = acq->counters;
+        cm_acq_counters copy = {
+            .drdy_edges = counter_load(&acq->counter_store.drdy_edges),
+            .successful_reads = counter_load(&acq->counter_store.successful_reads),
+            .inferred_missed_intervals =
+                counter_load(&acq->counter_store.inferred_missed_intervals),
+            .i2c_failures = counter_load(&acq->counter_store.i2c_failures),
+            .source_faults = counter_load(&acq->counter_store.source_faults),
+            .ring_overruns = counter_load(&acq->counter_store.ring_overruns),
+        };
         __atomic_thread_fence(__ATOMIC_ACQUIRE);
         uint32_t after = LOAD32(&acq->counter_seq, __ATOMIC_ACQUIRE);
         if (before == after && !(after & 1u)) {
