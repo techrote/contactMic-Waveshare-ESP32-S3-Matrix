@@ -25,7 +25,12 @@ This file is the retrieval map for agents working in this repository. Read it af
   v1 fields without changing the fixed RAG audio layout.
 - `docs/CM-005-HOST.md`: installation, receiver lifecycle, DSP, bounded buffers,
   loss/recording semantics, diagnostics and virtual-audio routing.
-- `docs/DEVELOPMENT.md`: current firmware/host build and test commands.
+- `docs/CM-006-INTEGRATION.md`: current integrated source/session execution authority,
+  nonblocking generation handoff, calibration/publication boundary, AUTO policy and
+  deterministic end-to-end qualification. Supersedes earlier milestone notes saying
+  the app has no acquisition source; unchanged v1 bytes and physical gates remain.
+- `docs/DEVELOPMENT.md`: firmware/host build and test commands; CM-006 adds the
+  integration test commands linked above.
 
 ## Programme
 

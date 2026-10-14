@@ -15,15 +15,15 @@ static uint64_t sat_add(uint64_t value, uint64_t increment)
 
 static uint64_t counter_load(const cm_acq_counter64_storage *counter)
 {
-    uint32_t low = LOAD32(&counter->low, __ATOMIC_RELAXED);
-    uint32_t high = LOAD32(&counter->high, __ATOMIC_RELAXED);
+    uint32_t low = LOAD32(&counter->low, __ATOMIC_SEQ_CST);
+    uint32_t high = LOAD32(&counter->high, __ATOMIC_SEQ_CST);
     return ((uint64_t)high << 32) | low;
 }
 
 static void counter_store(cm_acq_counter64_storage *counter, uint64_t value)
 {
-    STORE32(&counter->low, (uint32_t)value, __ATOMIC_RELAXED);
-    STORE32(&counter->high, (uint32_t)(value >> 32), __ATOMIC_RELAXED);
+    STORE32(&counter->low, (uint32_t)value, __ATOMIC_SEQ_CST);
+    STORE32(&counter->high, (uint32_t)(value >> 32), __ATOMIC_SEQ_CST);
 }
 
 static void counter_add(cm_acq_counter64_storage *counter, uint64_t increment)
@@ -33,12 +33,12 @@ static void counter_add(cm_acq_counter64_storage *counter, uint64_t increment)
 
 static void counters_begin(cm_acq *acq)
 {
-    (void)__atomic_add_fetch(&acq->counter_seq, 1u, __ATOMIC_ACQ_REL);
+    (void)__atomic_add_fetch(&acq->counter_seq, 1u, __ATOMIC_SEQ_CST);
 }
 
 static void counters_end(cm_acq *acq)
 {
-    (void)__atomic_add_fetch(&acq->counter_seq, 1u, __ATOMIC_RELEASE);
+    (void)__atomic_add_fetch(&acq->counter_seq, 1u, __ATOMIC_SEQ_CST);
 }
 
 static void ring_clear(cm_acq *acq)
@@ -187,32 +187,45 @@ size_t cm_acq_consume(cm_acq *acq, size_t count)
     return take;
 }
 
+bool cm_acq_try_snapshot(const cm_acq *acq, cm_acq_counters *out)
+{
+    if (!acq || !out) return false;
+    /* One attempt only. A higher-priority reader must never spin while the
+     * acquisition writer is preempted. On contention the caller keeps its last
+     * coherent observation; all words participate in one atomic total order. */
+    uint32_t before = LOAD32(&acq->counter_seq, __ATOMIC_SEQ_CST);
+    if (before & 1u) return false;
+    cm_acq_counters copy = {
+        .drdy_edges = counter_load(&acq->counter_store.drdy_edges),
+        .successful_reads = counter_load(&acq->counter_store.successful_reads),
+        .inferred_missed_intervals = counter_load(&acq->counter_store.inferred_missed_intervals),
+        .i2c_failures = counter_load(&acq->counter_store.i2c_failures),
+        .source_faults = counter_load(&acq->counter_store.source_faults),
+        .ring_overruns = counter_load(&acq->counter_store.ring_overruns),
+    };
+    uint32_t after = LOAD32(&acq->counter_seq, __ATOMIC_SEQ_CST);
+    if (before != after || (after & 1u)) return false;
+    *out = copy;
+    return true;
+}
+
 void cm_acq_snapshot(const cm_acq *acq, cm_acq_counters *out)
 {
     if (!out) return;
-    if (!acq) {
-        memset(out, 0, sizeof(*out));
-        return;
-    }
-    for (;;) {
-        uint32_t before = LOAD32(&acq->counter_seq, __ATOMIC_ACQUIRE);
-        if (before & 1u) continue;
-        cm_acq_counters copy = {
-            .drdy_edges = counter_load(&acq->counter_store.drdy_edges),
-            .successful_reads = counter_load(&acq->counter_store.successful_reads),
-            .inferred_missed_intervals =
-                counter_load(&acq->counter_store.inferred_missed_intervals),
-            .i2c_failures = counter_load(&acq->counter_store.i2c_failures),
-            .source_faults = counter_load(&acq->counter_store.source_faults),
-            .ring_overruns = counter_load(&acq->counter_store.ring_overruns),
-        };
-        __atomic_thread_fence(__ATOMIC_ACQUIRE);
-        uint32_t after = LOAD32(&acq->counter_seq, __ATOMIC_ACQUIRE);
-        if (before == after && !(after & 1u)) {
-            *out = copy;
-            return;
-        }
-    }
+    if (!acq) { memset(out, 0, sizeof(*out)); return; }
+    /* Legacy owner/quiescent API. Concurrent transport uses try_snapshot. */
+    while (!cm_acq_try_snapshot(acq, out)) { }
+}
+
+cm_acq_result cm_acq_rebase_publication(cm_acq *acq)
+{
+    if (!acq || !acq->read) return CM_ACQ_INVALID;
+    if (!LOAD32(&acq->running, __ATOMIC_ACQUIRE)) return CM_ACQ_STATE;
+    /* Acquisition owner only, while external publication is still gated.
+     * The calibration rate and lifetime counters survive this stream origin. */
+    ring_clear(acq);
+    acq->next_index = 0;
+    return CM_ACQ_OK;
 }
 
 bool cm_acq_rate_begin(const cm_acq *acq, uint64_t now_us, cm_acq_rate_window *window)
@@ -235,14 +248,22 @@ bool cm_acq_rate_finish(cm_acq *acq, const cm_acq_rate_window *window, uint64_t 
 
     uint64_t edges = counters.drdy_edges - window->start_edges;
     uint64_t elapsed_us = now_us - window->start_us;
-    uint64_t rate;
-    if (edges > UINT64_MAX / 1000000000ull) {
-        rate = UINT32_MAX;
-    } else {
-        rate = (edges * 1000000000ull + elapsed_us / 2u) / elapsed_us;
-        if (rate > UINT32_MAX) rate = UINT32_MAX;
-    }
-    STORE32(&acq->measured_rate_millihz, (uint32_t)rate, __ATOMIC_RELEASE);
+    uint32_t rate;
+    if (!cm_acq_calculate_rate(edges, elapsed_us, &rate)) return false;
+    STORE32(&acq->measured_rate_millihz, rate, __ATOMIC_RELEASE);
+    return true;
+}
+
+bool cm_acq_calculate_rate(uint64_t edges, uint64_t elapsed_us, uint32_t *out)
+{
+    if (!out || !elapsed_us || edges > UINT64_MAX / 1000000000ull) return false;
+    /* Divide before rounding: adding half the elapsed time could overflow. */
+    uint64_t numerator = edges * 1000000000ull;
+    uint64_t rate = numerator / elapsed_us;
+    uint64_t remainder = numerator % elapsed_us;
+    if (remainder >= elapsed_us / 2u + elapsed_us % 2u) ++rate;
+    if (rate > UINT32_MAX) return false;
+    *out = (uint32_t)rate;
     return true;
 }
 

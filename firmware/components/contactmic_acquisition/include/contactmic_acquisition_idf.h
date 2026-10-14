@@ -25,6 +25,12 @@ esp_err_t cm_acq_idf_configure(cm_acq_idf *ctx, cm_acq_policy policy,
                                cm_acq_mode auto_ceiling);
 esp_err_t cm_acq_idf_start(cm_acq_idf *ctx);
 esp_err_t cm_acq_idf_stop(cm_acq_idf *ctx);
+/* Integration controller only. prepare performs slow configure/start settling
+ * outside BLE and drains calibration samples. publish is acknowledged by the
+ * acquisition task only after rebasing the index and clearing the ring. */
+esp_err_t cm_acq_idf_prepare(cm_acq_idf *ctx);
+esp_err_t cm_acq_idf_publish(cm_acq_idf *ctx);
+bool cm_acq_idf_publishing(const cm_acq_idf *ctx);
 
 /* AUTO only consumes explicit evidence supplied by later integration policy.
  * A lower transport ceiling clamps immediately; degrade steps down one mode.

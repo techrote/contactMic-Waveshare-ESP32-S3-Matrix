@@ -62,3 +62,6 @@ else()
     target_compile_options(acquisition PRIVATE -Wall -Wextra -Wpedantic -Werror)
 endif()
 add_test(NAME native.acquisition COMMAND acquisition)
+
+# CM-006 production integration and bounded hardware-free apparatus.
+add_subdirectory(cm006)

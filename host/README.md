@@ -4,9 +4,10 @@ Python 3.11+ receiver for the custom ContactMic BLE protocol, with separate
 strict codecs, loss accounting, DC removal/gain, stateful 48 kHz resampling,
 bounded live output, WAV recording and diagnostics.
 
-**Firmware acquisition is not integrated until CM-006.** The present CM-004 app
-advertises its service but reports that no source is attached. The host does not
-turn that into synthetic audio. Physical performance is a separate CM-007 gate.
+CM-006 now attaches real acquisition to the firmware service. Sensor startup
+failure still reports source unavailable, never synthetic audio. Physical
+performance is a separate CM-007 gate. See `docs/CM-006-INTEGRATION.md` for current
+session/fallback semantics; reconnect after a stopped AUTO boundary.
 
 From the repository root, in a Python 3.11+ virtual environment:
 
@@ -17,7 +18,7 @@ contactmic discover
 contactmic audio-devices
 ```
 
-With a later integrated source, example operations are:
+With integrated firmware and hardware, example operations are:
 
 ```sh
 contactmic diagnostics --policy safe --duration 30

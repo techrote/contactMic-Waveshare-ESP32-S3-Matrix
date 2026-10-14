@@ -17,13 +17,16 @@ struct cm_acq_idf {
     cmq_device *device;
     TaskHandle_t task;
     SemaphoreHandle_t gate;
-    cm_acq_rate_window rate_window;
+    uint64_t rate_started_us;
     uint64_t rate_deadline_us;
     uint32_t running;
     uint32_t rate_active;
     uint32_t measurement_done;
+    uint32_t publication; /* 0 calibration, 1 commit requested, 2 producer live */
     portMUX_TYPE pending_lock;
     uint64_t pending_edges;
+    uint64_t observed_edges;
+    bool record_enabled;
     cm_acq_policy policy;
     cm_acq_mode mode;
     cm_acq_mode auto_ceiling;
@@ -72,21 +75,41 @@ static cmq_mode qmi_mode(cm_acq_mode mode)
     }
 }
 
+static bool read_window_open(cm_acq_idf *ctx)
+{
+    portENTER_CRITICAL(&ctx->pending_lock);
+    bool valid = ctx->pending_edges == 0 &&
+                 gpio_get_level((gpio_num_t)CMQ_INT2_GPIO) != 0;
+    portEXIT_CRITICAL(&ctx->pending_lock);
+    return valid;
+}
+
 static cm_acq_read_result read_selected(void *opaque, int16_t *sample)
 {
     cm_acq_idf *ctx = (cm_acq_idf *)opaque;
-    cmq_result result = cmq_read_selected(ctx->device, sample);
-    if (result == CMQ_OK) return CM_ACQ_READ_OK;
+    /* CM-002 requires the DRDY-high window. Never publish an I2C-success value
+     * after an observed intervening edge/update. Physical interrupt latency and
+     * bus-window feasibility still require CM-007 measurement. */
+    if (!read_window_open(ctx)) return CM_ACQ_READ_FAULT;
+    int16_t value;
+    cmq_result result = cmq_read_selected(ctx->device, &value);
     if (result == CMQ_IO) return CM_ACQ_READ_IO;
-    return CM_ACQ_READ_FAULT;
+    if (result != CMQ_OK || !read_window_open(ctx)) return CM_ACQ_READ_FAULT;
+    *sample = value;
+    return CM_ACQ_READ_OK;
 }
 
 static void drdy_isr(void *opaque)
 {
     cm_acq_idf *ctx = (cm_acq_idf *)opaque;
     portENTER_CRITICAL_ISR(&ctx->pending_lock);
-    if (ctx->pending_edges != UINT64_MAX) ++ctx->pending_edges;
+    bool record = ctx->record_enabled;
+    if (record) {
+        if (ctx->pending_edges != UINT64_MAX) ++ctx->pending_edges;
+        if (ctx->observed_edges != UINT64_MAX) ++ctx->observed_edges;
+    }
     portEXIT_CRITICAL_ISR(&ctx->pending_lock);
+    if (!record) return;
 
     BaseType_t wake = pdFALSE;
     vTaskNotifyGiveFromISR(ctx->task, &wake);
@@ -110,30 +133,49 @@ static uint64_t take_pending(cm_acq_idf *ctx)
     return edges;
 }
 
+static void acquisition_cycle(cm_acq_idf *ctx)
+{
+    xSemaphoreTake(ctx->gate, portMAX_DELAY);
+    uint64_t edges = take_pending(ctx);
+    if (load_flag(&ctx->running)) {
+        if (edges) (void)cm_acq_service_edges(&ctx->core, edges);
+        uint32_t publication = load_flag(&ctx->publication);
+        if (publication != 2u) {
+            /* Until producer acknowledgment, this task is the sole consumer.
+             * Calibration cannot fill the ring or become host audio. */
+            (void)cm_acq_consume(&ctx->core, CM_ACQ_RING_CAPACITY);
+            if (publication == 1u) {
+                (void)cm_acq_rebase_publication(&ctx->core);
+                store_flag(&ctx->publication, 2u);
+            }
+        }
+        if (load_flag(&ctx->rate_active) &&
+            (uint64_t)esp_timer_get_time() >= ctx->rate_deadline_us) {
+            /* Count observed edges, including those pending during a slow I2C
+             * transaction, rather than underreporting the rate as service lags. */
+            portENTER_CRITICAL(&ctx->pending_lock);
+            uint64_t count = ctx->observed_edges;
+            uint64_t now = (uint64_t)esp_timer_get_time();
+            portEXIT_CRITICAL(&ctx->pending_lock);
+            uint32_t rate = 0;
+            if (now > ctx->rate_started_us && count != UINT64_MAX)
+                (void)cm_acq_calculate_rate(count, now - ctx->rate_started_us, &rate);
+            __atomic_store_n(&ctx->core.measured_rate_millihz, rate, __ATOMIC_RELEASE);
+            store_flag(&ctx->rate_active, 0u);
+            store_flag(&ctx->measurement_done, 1u);
+        }
+    }
+    xSemaphoreGive(ctx->gate);
+}
+
 static void acquisition_task(void *opaque)
 {
     cm_acq_idf *ctx = (cm_acq_idf *)opaque;
+    TickType_t delay = pdMS_TO_TICKS(CM_ACQ_TASK_WAIT_MS);
+    if (!delay) delay = 1;
     for (;;) {
-        (void)ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(CM_ACQ_TASK_WAIT_MS));
-
-        xSemaphoreTake(ctx->gate, portMAX_DELAY);
-        uint64_t edges = take_pending(ctx);
-        if (load_flag(&ctx->running) && edges != 0u) {
-            (void)cm_acq_service_edges(&ctx->core, edges);
-        }
-        xSemaphoreGive(ctx->gate);
-
-        if (load_flag(&ctx->running) && load_flag(&ctx->rate_active) &&
-            (uint64_t)esp_timer_get_time() >= ctx->rate_deadline_us) {
-            xSemaphoreTake(ctx->gate, portMAX_DELAY);
-            if (load_flag(&ctx->running) && load_flag(&ctx->rate_active)) {
-                (void)cm_acq_rate_finish(&ctx->core, &ctx->rate_window,
-                                         (uint64_t)esp_timer_get_time());
-                store_flag(&ctx->rate_active, 0u);
-                store_flag(&ctx->measurement_done, 1u);
-            }
-            xSemaphoreGive(ctx->gate);
-        }
+        (void)ulTaskNotifyTake(pdTRUE, delay);
+        acquisition_cycle(ctx);
     }
 }
 
@@ -254,7 +296,7 @@ esp_err_t cm_acq_idf_configure(cm_acq_idf *ctx, cm_acq_policy policy,
     return err;
 }
 
-esp_err_t cm_acq_idf_start(cm_acq_idf *ctx)
+static esp_err_t start_mode(cm_acq_idf *ctx, bool calibration)
 {
     if (!ctx || !ctx->configured) return ESP_ERR_INVALID_STATE;
     if (load_flag(&ctx->running)) return ESP_ERR_INVALID_STATE;
@@ -281,13 +323,13 @@ esp_err_t cm_acq_idf_start(cm_acq_idf *ctx)
     }
 
     uint64_t now = (uint64_t)esp_timer_get_time();
-    if (!cm_acq_rate_begin(&ctx->core, now, &ctx->rate_window)) {
-        (void)cmq_stop(ctx->device);
-        (void)cm_acq_stop_session(&ctx->core);
-        xSemaphoreGive(ctx->gate);
-        return ESP_FAIL;
-    }
+    ctx->rate_started_us = now;
     ctx->rate_deadline_us = now + CM_ACQ_MEASURE_US;
+    portENTER_CRITICAL(&ctx->pending_lock);
+    ctx->observed_edges = 0;
+    ctx->record_enabled = true;
+    portEXIT_CRITICAL(&ctx->pending_lock);
+    store_flag(&ctx->publication, calibration ? 0u : 2u);
     store_flag(&ctx->rate_active, 1u);
     store_flag(&ctx->running, 1u);
     clear_pending(ctx);
@@ -301,10 +343,28 @@ esp_err_t cm_acq_idf_start(cm_acq_idf *ctx)
     return ESP_OK;
 }
 
+esp_err_t cm_acq_idf_start(cm_acq_idf *ctx) { return start_mode(ctx, false); }
+esp_err_t cm_acq_idf_prepare(cm_acq_idf *ctx) { return start_mode(ctx, true); }
+esp_err_t cm_acq_idf_publish(cm_acq_idf *ctx)
+{
+    if (!ctx || !load_flag(&ctx->running) || !load_flag(&ctx->measurement_done) ||
+        !cm_acq_measured_rate_millihz(&ctx->core) || load_flag(&ctx->publication))
+        return ESP_ERR_INVALID_STATE;
+    store_flag(&ctx->publication, 1u);
+    xTaskNotifyGive(ctx->task);
+    return ESP_OK;
+}
+bool cm_acq_idf_publishing(const cm_acq_idf *ctx)
+{ return ctx && load_flag(&ctx->publication) == 2u; }
+
 esp_err_t cm_acq_idf_stop(cm_acq_idf *ctx)
 {
     if (!ctx) return ESP_ERR_INVALID_ARG;
-    (void)gpio_intr_disable((gpio_num_t)CMQ_INT2_GPIO);
+    esp_err_t irq = gpio_intr_disable((gpio_num_t)CMQ_INT2_GPIO);
+    if (irq != ESP_OK) return irq;
+    portENTER_CRITICAL(&ctx->pending_lock);
+    ctx->record_enabled = false;
+    portEXIT_CRITICAL(&ctx->pending_lock);
 
     if (!ctx->gate) return ESP_OK;
     xSemaphoreTake(ctx->gate, portMAX_DELAY);
@@ -317,7 +377,8 @@ esp_err_t cm_acq_idf_stop(cm_acq_idf *ctx)
         (void)cm_acq_discard_edges(&ctx->core, pending);
     }
     store_flag(&ctx->running, 0u);
-    store_flag(&ctx->rate_active, 0u);
+    invalidate_measurement(ctx);
+    store_flag(&ctx->publication, 0u);
     (void)cm_acq_stop_session(&ctx->core);
     cmq_result result = CMQ_OK;
     if (ctx->device &&
