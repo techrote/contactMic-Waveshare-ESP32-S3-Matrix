@@ -91,7 +91,7 @@ static void clear_pending(cm_acq_idf *ctx)
     portENTER_CRITICAL(&ctx->pending_lock);
     ctx->pending_edges = 0u;
     portEXIT_CRITICAL(&ctx->pending_lock);
-    if (ctx->task) clear_pending(ctx);
+    if (ctx->task) (void)ulTaskNotifyValueClear(ctx->task, UINT32_MAX);
 }
 
 static uint64_t take_pending(cm_acq_idf *ctx)
