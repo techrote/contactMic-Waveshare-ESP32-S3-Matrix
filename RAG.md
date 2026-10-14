@@ -21,6 +21,9 @@ This file is the retrieval map for agents working in this repository. Read it af
 - `docs/CM-004-WIRE-V1.md`: exact descriptor/control/status bytes, session handshake,
   nonblocking source interface and canonical vectors. Completes previously unspecified
   v1 fields without changing the fixed RAG audio layout.
+- `docs/CM-005-HOST.md`: installation, receiver lifecycle, DSP, bounded buffers,
+  loss/recording semantics, diagnostics and virtual-audio routing.
+- `docs/DEVELOPMENT.md`: current firmware/host build and test commands.
 
 ## Programme
 
