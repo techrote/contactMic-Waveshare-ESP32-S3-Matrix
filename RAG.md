@@ -29,6 +29,9 @@ This file is the retrieval map for agents working in this repository. Read it af
   nonblocking generation handoff, calibration/publication boundary, AUTO policy and
   deterministic end-to-end qualification. Supersedes earlier milestone notes saying
   the app has no acquisition source; unchanged v1 bytes and physical gates remain.
+- `docs/CM-007-HARDWARE-QUALIFICATION.md`: physical-run preparation, evidence schema,
+  serial/host capture, threshold evaluation and controlled stimulus procedure. It is
+  preparation authority only until real-board evidence is reviewed and accepted.
 - `docs/DEVELOPMENT.md`: firmware/host build and test commands; CM-006 adds the
   integration test commands linked above.
 

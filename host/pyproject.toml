@@ -13,6 +13,7 @@ dependencies = []
 [project.optional-dependencies]
 ble = ["bleak>=1.1,<4"]
 audio = ["sounddevice>=0.5,<1"]
+qualification = ["bleak>=1.1,<4", "sounddevice>=0.5,<1", "pyserial>=3.5,<4"]
 
 [project.scripts]
 contactmic = "contactmic.cli:main"
