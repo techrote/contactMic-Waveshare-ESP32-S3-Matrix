@@ -26,6 +26,10 @@ static uint16_t connection = BLE_HS_CONN_HANDLE_NONE;
 static uint16_t audio_handle, control_handle, status_handle;
 static uint8_t own_address;
 static cm_transport transport;
+static cm_ble_observer_fn observer;
+static void *observer_context;
+#define CM_PUMP_PACKETS 4u
+#define CM_PUMP_MS 5u
 static bool started, synced, status_subscribed, status_dirty;
 static uint8_t response[CM_CONTROL_MAX_RESPONSE], response_read[CM_CONTROL_MAX_RESPONSE];
 static size_t response_length, response_read_length;
@@ -36,6 +40,14 @@ static uint32_t last_status_tick;
 static uint32_t interval_ticks(uint32_t ms)
 { uint32_t n = ble_npl_time_ms_to_ticks32(ms); return n ? n : 1; }
 static int gap_event(struct ble_gap_event *, void *);
+static void observe_transport(void)
+{
+    if (!observer) return;
+    /* Derive an upper bound from the actual NPL tick rounding and pump budget.
+     * This is not a negotiated or measured RF-throughput value. */
+    uint32_t budget = CM_PUMP_PACKETS * interval_ticks(1000) / interval_ticks(CM_PUMP_MS);
+    if (observer(observer_context, &transport, budget)) status_dirty = true;
+}
 
 static int access_characteristic(uint16_t conn, uint16_t handle,
                                   struct ble_gatt_access_ctxt *ctx, void *arg)
@@ -137,8 +149,9 @@ static void pump(struct ble_npl_event *event)
     bool periodic = now - last_status_tick >= interval_ticks(1000);
     if (periodic) last_status_tick = now;
     if (connection != BLE_HS_CONN_HANDLE_NONE) {
+        observe_transport();
         /* Each invocation is bounded, including under a slow or absent consumer. */
-        for (unsigned i=0; i<4; ++i)
+        for (unsigned i=0; i<CM_PUMP_PACKETS; ++i)
             if (cm_transport_pump(&transport, notify_audio, NULL) != CM_OK) break;
         if (periodic) {
             uint8_t tx=0, rx=0;
@@ -147,7 +160,7 @@ static void pump(struct ble_npl_event *event)
         }
         if (status_dirty) notify_status();
     } else if (periodic) advertise();
-    ble_npl_callout_reset(&pump_timer, interval_ticks(5));
+    ble_npl_callout_reset(&pump_timer, interval_ticks(CM_PUMP_MS));
 }
 static void clear_connection(void)
 {
@@ -163,6 +176,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
         if (event->connect.status) { advertise(); break; }
         connection = event->connect.conn_handle;
         cm_transport_connect(&transport); status_dirty = true;
+        observe_transport();
         /* Requests, not claims of negotiated transport capacity. */
         int rc = ble_gap_set_data_len(connection, 251, 2120);
         if (rc) ESP_LOGI(TAG, "data-length request not accepted: %d", rc);
@@ -185,6 +199,7 @@ static int gap_event(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_MTU:
         if (event->mtu.conn_handle == connection) {
             cm_transport_mtu(&transport, ble_att_mtu(connection)); status_dirty = true;
+            observe_transport();
         }
         break;
     case BLE_GAP_EVENT_NOTIFY_TX:
@@ -213,8 +228,12 @@ static void host_task(void *arg)
     (void)arg; nimble_port_run(); nimble_port_freertos_deinit();
 }
 esp_err_t cm_ble_idf_start(const cm_source *source)
+{ return cm_ble_idf_start_observed(source, NULL, NULL); }
+
+esp_err_t cm_ble_idf_start_observed(const cm_source *source, cm_ble_observer_fn callback, void *context)
 {
     if (started) return ESP_ERR_INVALID_STATE;
+    observer = callback; observer_context = context;
     /* Random boot prefix reduces cross-boot identity collisions; connection
      * generation, not this randomness, is the stale-callback exclusion mechanism. */
     if (cm_transport_init(&transport, source, esp_random() & 0x7fffffffu) != CM_OK)
@@ -233,7 +252,7 @@ esp_err_t cm_ble_idf_start(const cm_source *source)
     if (!host_rc) host_rc = ble_gatts_add_svcs(services);
     if (host_rc) { (void)nimble_port_deinit(); return ESP_FAIL; }
     ble_npl_callout_init(&pump_timer, nimble_port_get_dflt_eventq(), pump, NULL);
-    ble_npl_callout_reset(&pump_timer, interval_ticks(5));
+    ble_npl_callout_reset(&pump_timer, interval_ticks(CM_PUMP_MS));
     started = true; nimble_port_freertos_init(host_task);
     return ESP_OK;
 }

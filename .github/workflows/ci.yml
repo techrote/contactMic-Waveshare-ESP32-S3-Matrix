@@ -64,6 +64,12 @@ jobs:
       - name: Test toolchain rejection paths without ESP-IDF
         run: python3 -m unittest discover -s tests/tooling -v
 
+      - name: Qualify production C source through installed host decoder and DSP
+        run: |
+          python3 -m venv build/host-verify
+          build/host-verify/bin/python -m pip install --no-cache-dir ./host
+          build/host-verify/bin/python -I tests/integration/test_cm006.py --simulator build/native/cm006_simulator
+
   host:
     name: Host (${{ matrix.os }}, Python ${{ matrix.python }})
     runs-on: ${{ matrix.os }}

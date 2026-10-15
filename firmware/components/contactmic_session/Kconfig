@@ -1,0 +1,11 @@
+menu "ContactMic integration"
+config CONTACTMIC_AUTO_CEILING
+    int "Unqualified AUTO bootstrap ceiling (0=safe, 1=medium, 2=high)"
+    range 0 2
+    default 0
+    help
+        Safe is the conservative pre-hardware bootstrap, not a qualified
+        production default. Raise this ceiling only for explicit candidate
+        testing. Runtime fault/capacity downshifts persist until reboot.
+        CM-007 must select production defaults from physical evidence.
+endmenu

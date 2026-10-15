@@ -106,12 +106,20 @@ cm_acq_result cm_acq_discard_edges(cm_acq *acq, uint64_t accumulated_edges);
 size_t cm_acq_count(const cm_acq *acq);
 bool cm_acq_peek(const cm_acq *acq, size_t offset, cm_acq_sample *sample);
 size_t cm_acq_consume(cm_acq *acq, size_t count);
+/* Owner/quiescent snapshot; concurrent readers must use the bounded variant. */
 void cm_acq_snapshot(const cm_acq *acq, cm_acq_counters *out);
+/* One attempt; false leaves out unchanged. Never waits for a preempted writer. */
+bool cm_acq_try_snapshot(const cm_acq *acq, cm_acq_counters *out);
+/* Owner only, consumer gated: discard calibration queue and reset index origin,
+ * preserving measured rate and all lifetime counters. */
+cm_acq_result cm_acq_rebase_publication(cm_acq *acq);
 
 /* Rate windows use serviced DRDY edge counts, including accumulated notifications. */
 bool cm_acq_rate_begin(const cm_acq *acq, uint64_t now_us, cm_acq_rate_window *window);
 bool cm_acq_rate_finish(cm_acq *acq, const cm_acq_rate_window *window, uint64_t now_us);
 uint32_t cm_acq_measured_rate_millihz(const cm_acq *acq);
+/* Pure calculation for independently observed ISR edge/time windows. */
+bool cm_acq_calculate_rate(uint64_t edges, uint64_t elapsed_us, uint32_t *out);
 
 /*
  * No physical fallback threshold is invented here. AUTO accepts an explicit
