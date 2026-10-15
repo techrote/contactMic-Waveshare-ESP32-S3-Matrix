@@ -29,8 +29,13 @@ This file is the retrieval map for agents working in this repository. Read it af
   nonblocking generation handoff, calibration/publication boundary, AUTO policy and
   deterministic end-to-end qualification. Supersedes earlier milestone notes saying
   the app has no acquisition source; unchanged v1 bytes and physical gates remain.
+- `docs/CM-009-USB-AUDIO-CONTRACT.md`: additive native UAC2/CDC route, isolated USB
+  firmware, on-device DSP/clock reconciliation, controls, recovery, USB-only evidence
+  runner and physical acceptance boundary. Earlier BLE-only host/metadata statements
+  remain authoritative for BLE, not as restrictions on the separately authorized USB route.
 - `docs/DEVELOPMENT.md`: firmware/host build and test commands; CM-006 adds the
-  integration test commands linked above.
+  integration test commands linked above. CM-009's isolated project commands are in
+  its USB contract; do not reuse the BLE sdkconfig/build directory for USB.
 
 ## Programme
 

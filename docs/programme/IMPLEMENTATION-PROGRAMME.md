@@ -1,6 +1,6 @@
 # Implementation programme
 
-Plan reviewed and revised: 2026-10-10.
+Plan reviewed and revised: 2026-10-10. Additive USB route authorized by CM-009: 2026-10-15.
 
 ## GitHub issue map
 
@@ -12,6 +12,7 @@ Plan reviewed and revised: 2026-10-10.
 - CM-006 -> #6
 - CM-007 -> #7
 - CM-008 -> #8
+- CM-009 -> #16
 
 ## Plan review
 
@@ -37,15 +38,22 @@ The revised programme isolates acquisition from BLE, uses direct single-axis DRD
                     \           |          /
                      \          |         /
                       +--------> CM-006 <+
-                                  |
-                                  v
-                             CM-007 Hardware
-                                  |
-                                  v
-                             CM-008 Release
+                                 /    \
+                                v      v
+                  CM-007 BLE hardware  CM-009 USB implementation + hardware
+                         [held]           [independent route]
+                                \      /
+                                 v    v
+                         CM-008 full release reconciliation
 ~~~
 
 CM-005 may proceed after CM-001 because the wire contract is already authoritative in RAG. CM-004 may use a fake source until CM-003 is ready, but CM-006 is where real acquisition and BLE are accepted together.
+
+CM-009 does not depend on CM-007 or its draft preparation PR #15. The user has no
+Bluetooth-capable host at present; preserve that held work. USB-only acceptance
+cannot satisfy BLE's physical gate. A full dual-transport CM-008 release must
+reconcile the actual evidence for both; a separately scoped USB-only release would
+need explicit authorization rather than silently relaxing CM-008.
 
 ## CM-001 — Repository foundation, pinned toolchain and CI
 
@@ -173,7 +181,7 @@ Acceptance: physical evidence satisfies `docs/rag/06-VERIFICATION-AND-CI.md`; if
 
 ## CM-008 — Release hardening and acceptance reconciliation
 
-Depends: CM-007.
+Depends: CM-007; full dual-transport release also requires CM-009 USB evidence.
 
 Deliver:
 
@@ -188,10 +196,33 @@ Deliver:
 
 Acceptance: complete automated CI green, documented hardware evidence linked, default branch post-merge verification green.
 
+## CM-009 — Native USB Audio Class microphone and independent qualification
+
+Depends: accepted CM-006, not CM-007 or its unmerged draft tooling.
+
+Deliver:
+
+- isolated radio-disabled `firmware-usb/`, retaining the BLE build;
+- actual UAC2 mono PCM16 48 kHz microphone plus same-instance CDC controls;
+- shared accepted QMI/acquisition, device-side DC/gain/limiting and independent-clock resampling;
+- generation-safe preparation, publication, capture stop/reopen/reset/suspend behavior;
+- truthful indexed source loss, counted silence/queue/clock corrections and correlated diagnostics;
+- USB-only OS-input capture runner with no BLE dependency and conservative evidence evaluation;
+- production core/descriptor/adapter/clock/fault tests and both firmware builds in normal CI;
+- Windows physical enumeration, ordinary-app recording, recovery, sustained high/medium,
+  lifecycle, axis/range/contact tests and USB-specific default selection.
+
+The implementation and protocol authority is `docs/CM-009-USB-AUDIO-CONTRACT.md`.
+Track **software-complete / USB-hardware-held** separately from
+**USB-microphone-accepted / BLE-hardware-held**. The first is not permission to close
+issue #16 or merge its hardware-gated PR. USB output at 48 kHz is not a sensor ODR
+or bandwidth guarantee. Keep the 400 kHz I2C limit and original source-miss targets.
+
 ## Common issue completion rule
 
 Every GitHub issue created from this programme is an executable agent prompt.
 
 The agent must read `AGENTS.md`, `RAG.md`, issue-specific documents and all issue comments; reconcile live state; implement; test; open a PR; monitor CI at **no less than 120-second intervals**; fix failures; merge only after all required automated checks are green; then verify the default branch and record acceptance.
 
-Hardware issue CM-007 must not be merged as "qualified" without actual physical evidence.
+Hardware issues CM-007 and CM-009 must not be merged as "qualified" without their
+actual physical evidence. No simulator pass substitutes for that evidence.

@@ -65,3 +65,6 @@ add_test(NAME native.acquisition COMMAND acquisition)
 
 # CM-006 production integration and bounded hardware-free apparatus.
 add_subdirectory(cm006)
+
+# CM-009 USB core, actual adapter with explicit fakes, and independent clocks.
+add_subdirectory(cm009)

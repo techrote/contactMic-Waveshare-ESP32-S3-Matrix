@@ -47,6 +47,30 @@ jobs:
           idf.py -C firmware set-target esp32s3
           idf.py -C firmware build
 
+  firmware-usb:
+    name: USB UAC2 and CDC (ESP-IDF v5.5.5, ESP32-S3)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container:
+      image: espressif/idf:v5.5.5
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Clean isolated USB-only build with pinned TinyUSB
+        run: |
+          # shellcheck disable=SC1091
+          . /opt/esp/idf/export.sh
+          idf.py -C firmware-usb set-target esp32s3
+          idf.py -C firmware-usb build
+          if grep -Eq '^CONFIG_(BT_ENABLED|ESP_WIFI_ENABLED)=y$' firmware-usb/sdkconfig; then
+            echo 'USB-only qualification must not enable a radio'
+            exit 1
+          fi
+
   native:
     name: Native core and toolchain guards
     runs-on: ubuntu-24.04
@@ -87,7 +111,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install host and optional backend dependencies without persistent caches
-        run: python -m pip install --no-cache-dir "./host[ble,audio]"
+        run: python -m pip install --no-cache-dir "./host[ble,audio,usb]"
       - name: Check installed dependency consistency
         run: python -m pip check
       - name: Test installed host package without BLE or audio hardware

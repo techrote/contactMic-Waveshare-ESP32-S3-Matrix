@@ -90,3 +90,20 @@ Simulator tests can prove software behavior but not:
 - board self-noise.
 
 Those claims belong to the hardware qualification issue.
+
+## CM-009 native USB extension
+
+The stock USB data nets use GPIO19/D- and GPIO20/D+, as shown in the official
+schematic linked in `00-SOURCES.md`. The USB-only application uses the ESP32-S3
+full-speed USB-OTG device controller and its internal PHY in software; it must not
+reconfigure the accepted IMU pins or assume USB removes the I2C constraint.
+
+Hardware USB Serial/JTAG and application USB-OTG share the internal PHY. UAC2 and
+CDC diagnostics therefore share one application TinyUSB instance; the old JTAG
+COM endpoint is not promised concurrently. No external PHY or permanent eFuse
+change is authorized. BOOT/RESET ROM-download recovery must be tested before
+physical acceptance. See `docs/CM-009-USB-AUDIO-CONTRACT.md` for pin/API sources,
+class/endpoint allocation, build isolation, power declarations and recovery.
+
+USB electrical power/suspend behavior and native host enumeration require actual
+board measurement. USB acceptance is independent of, and cannot certify, BLE.
