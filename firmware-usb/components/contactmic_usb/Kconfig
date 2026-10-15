@@ -1,0 +1,9 @@
+menu "ContactMic USB microphone"
+config CONTACTMIC_USB_AUTO_CEILING
+    int "USB-only AUTO bootstrap ceiling (0=safe, 1=medium, 2=high)"
+    range 0 2
+    default 0
+    help
+        This is not a physical qualification result. Fixed modes remain available
+        through CDC. USB-specific production defaults require CM-009 hardware evidence.
+endmenu
