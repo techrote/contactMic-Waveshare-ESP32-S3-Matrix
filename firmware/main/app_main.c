@@ -23,6 +23,14 @@ void app_main(void)
     if (rc == ESP_OK) {
         ESP_LOGI("contactmic", "QMI addr=0x%02x WHO=0x%02x revision=0x%02x; LEDs untouched",
                  device.address, device.who_am_i, device.revision);
+        /* One structured identity per boot lets CM-007 correlate serial evidence
+         * with the physical sensor without changing protocol v1. The LED field is
+         * policy, not an observation; the operator still records the visible state. */
+        ESP_LOGI("contactmic_hw",
+                 "CM_HW {\"schema\":1,\"qmi_address\":%u,\"who_am_i\":%u,"
+                 "\"revision\":%u,\"i2c_hz\":%u,\"led_policy\":\"untouched\"}",
+                 (unsigned)device.address, (unsigned)device.who_am_i,
+                 (unsigned)device.revision, (unsigned)CMQ_I2C_MAX_HZ);
         rc = cm_session_idf_create(&device, &source, &session);
     }
     if (rc == ESP_OK) {

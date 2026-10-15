@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/techrote/contactMic-Waveshare-ESP32-S3-Matrix/evidence/cm007/schema-v1.json",
+  "title": "ContactMic CM-007 qualification summary",
+  "type": "object",
+  "required": ["schema", "generated_utc", "status", "run", "serial", "metrics", "criteria"],
+  "properties": {
+    "schema": {"const": "contactmic.cm007.summary.v1"},
+    "generated_utc": {"type": "string"},
+    "status": {"enum": ["pass", "review_required", "evidence_complete", "fail", "incomplete"]},
+    "run": {
+      "type": "object",
+      "required": ["purpose", "policy", "axis", "range_g", "duration_s", "sink", "led_state_observed"]
+    },
+    "environment": {"type": "object"},
+    "stimulus": {"type": "object"},
+    "serial": {
+      "type": "object",
+      "required": ["opened", "identity", "identity_records", "crash_markers"]
+    },
+    "wav_analysis": {"type": ["object", "null"]},
+    "metrics": {"type": "object"},
+    "criteria": {
+      "type": "object",
+      "required": ["failures_or_incompleteness", "warnings", "review_observations"]
+    }
+  },
+  "additionalProperties": true
+}
