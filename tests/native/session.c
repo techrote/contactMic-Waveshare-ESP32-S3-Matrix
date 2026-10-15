@@ -6,7 +6,7 @@
 typedef struct {
     cm_acq acq; cm_session session; cm_source source; cm_transport transport;
     uint32_t rate; unsigned begins, stops, publishes, reads;
-    bool ready, live, cancel_in_begin, stop_fail;
+    bool ready, live, cancel_in_begin, stop_fail, hold_publish_ack;
     cm_acq_read_result next_read;
     unsigned notifications; bool reject;
     cm_audio last;
@@ -31,7 +31,8 @@ static cm_result publish(void *p)
     fixture *f=p; ++f->publishes;
     CHECK(cm_acq_rebase_publication(&f->acq)==CM_ACQ_OK); f->live=true; return CM_OK;
 }
-static bool published(void *p) { return ((fixture *)p)->live; }
+static bool published(void *p)
+{ fixture *f=p; return f->live && !f->hold_publish_ack; }
 static cm_result stop(void *p)
 {
     fixture *f=p; ++f->stops; f->live=false;
@@ -178,6 +179,34 @@ static void test_capacity_auto_and_errors(void)
     for(unsigned i=0;i<10;i++) cm_session_worker_step(&f.session,1400001+i);
     CHECK(f.stops==count);
 }
+static void test_publication_deadline(void)
+{
+    const uint64_t observations[] = {2259999u, 2260000u, 2260001u, 259999u};
+    for (size_t i=0;i<sizeof(observations)/sizeof(observations[0]);++i) {
+        fixture f; init(&f); prepare(&f,CM_POLICY_SAFE);
+        f.hold_publish_ack=true;
+        cm_transport_subscribe(&f.transport,true);
+        CHECK(control(&f,CM_OP_COMMIT_START,0)==CM_OK);
+        cm_session_worker_step(&f.session,260000u);
+        CHECK(f.session.worker_state==CMS_LAUNCHING);
+        cm_source_sample sample;
+        CHECK(!f.source.peek(f.source.context,0,&sample));
+        f.hold_publish_ack=false; /* Acknowledgment now becomes visible. */
+        cm_session_worker_step(&f.session,observations[i]);
+        if(i==0) {
+            CHECK(f.session.worker_state==CMS_LIVE); /* strictly before deadline */
+        } else {
+            /* At/after deadline or a regressing clock cannot revive publication. */
+            CHECK(f.session.worker_state==CMS_FAILED);
+            CHECK(!f.source.peek(f.source.context,0,&sample));
+            unsigned stops=f.stops;
+            cm_session_worker_step(&f.session,3000000u);
+            CHECK(f.stops==stops);
+            CHECK(cm_session_monitor(&f.session,&f.transport,3000000u,400));
+            CHECK(f.transport.status.state==CM_STOPPED);
+        }
+    }
+}
 static void test_bounds(void)
 {
     fixture f; init(&f); f.ready=false;
@@ -197,6 +226,6 @@ static void test_bounds(void)
 }
 int main(void)
 {
-    test_pipeline_faults(); test_cancel_and_mailboxes(); test_capacity_auto_and_errors(); test_bounds();
+    test_pipeline_faults(); test_cancel_and_mailboxes(); test_capacity_auto_and_errors(); test_bounds(); test_publication_deadline();
     puts("CM-006 lifecycle/fault tests passed"); return 0;
 }

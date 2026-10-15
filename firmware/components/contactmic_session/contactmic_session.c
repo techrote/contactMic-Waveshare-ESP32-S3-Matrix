@@ -212,12 +212,15 @@ void cm_session_worker_step(cm_session *s, uint64_t now)
         s->worker_started_us = now;
     }
     if (s->worker_state == CMS_LAUNCHING) {
+        /* Check the budget before the acknowledgment. A late producer reply
+         * must not reopen publication after a timed-out or regressing clock. */
+        if (now < s->worker_started_us ||
+            now - s->worker_started_us >= PREPARE_BUDGET_US) {
+            fail_worker(s, CM_IO); return;
+        }
         if (s->backend.published(s->backend.context)) {
             s->worker_state = CMS_LIVE;
             answer(s, CMS_LIVE, GET(&s->reply.rate), CM_OK);
-        } else if (now < s->worker_started_us ||
-                   now - s->worker_started_us >= PREPARE_BUDGET_US) {
-            fail_worker(s, CM_IO);
         }
     }
 }
