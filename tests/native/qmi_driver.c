@@ -25,7 +25,7 @@ static cmq_bus_result read_bytes(void *ctx, uint8_t addr, uint8_t reg, uint8_t *
     CHECK(addr >= 0x6a && addr <= 0x6b); CHECK(n == 1 || n == 2);
     if (fail(f)) return CMQ_BUS_ERROR;
     if (!f->present[addr - 0x6a]) return CMQ_BUS_ABSENT;
-    if (n == 2) CHECK(f->regs[addr - 0x6a][2] == 0x40); /* AI and LE configured. */
+    if (n == 2) CHECK((f->regs[addr - 0x6a][2] & 0xef) == 0x40); /* AI and LE; scoped INT2 gate. */
     memcpy(out, &f->regs[addr - 0x6a][reg], n); return CMQ_BUS_OK;
 }
 static cmq_bus_result write_byte(void *ctx, uint8_t addr, uint8_t reg, uint8_t value)
@@ -185,9 +185,26 @@ static void test_diagnostics(void)
     }
     CHECK(d.state==CMQ_RUNNING && f.writes==writes);
 }
+static void test_int2_gate(void)
+{
+    fake f;cmq_device d;ready(&f,&d);cmq_config c=configuration();
+    CHECK(cmq_set_int2_output(&d,true)==CMQ_STATE);
+    CHECK(cmq_configure(&d,&c)==CMQ_OK && f.regs[1][2]==0x40);
+    CHECK(cmq_set_int2_output(&d,true)==CMQ_OK && f.regs[1][2]==0x50);
+    CHECK(cmq_start(&d)==CMQ_OK);int16_t value;
+    CHECK(cmq_read_selected(&d,&value)==CMQ_OK);
+    size_t calls=f.calls;CHECK(cmq_set_int2_output(&d,false)==CMQ_STATE && f.calls==calls);
+    CHECK(cmq_stop(&d)==CMQ_OK);CHECK(cmq_set_int2_output(&d,false)==CMQ_OK && f.regs[1][2]==0x40);
+    for(size_t call=1;call<=2;call++) {
+        ready(&f,&d);CHECK(cmq_configure(&d,&c)==CMQ_OK);f.fail_at=f.calls+call;
+        CHECK(cmq_set_int2_output(&d,true)==CMQ_IO && d.state==CMQ_FAULT);
+    }
+    ready(&f,&d);CHECK(cmq_configure(&d,&c)==CMQ_OK);f.corrupt_write=true;
+    CHECK(cmq_set_int2_output(&d,true)==CMQ_VERIFY && d.state==CMQ_FAULT);
+}
 int main(void)
 {
-    test_probe(); test_configuration(); test_failures(); test_samples(); test_invalid();test_diagnostics();
+    test_probe(); test_configuration(); test_failures(); test_samples(); test_invalid();test_diagnostics();test_int2_gate();
     puts("QMI driver: probe, register policy, recovery, boundary and fault-injection tests passed");
     return 0;
 }

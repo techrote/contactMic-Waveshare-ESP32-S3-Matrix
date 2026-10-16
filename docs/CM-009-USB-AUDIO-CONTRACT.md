@@ -191,6 +191,10 @@ status/identity can be queried after opening CDC even when boot text was missed.
 Zero means none observed; the low word is the ESP-IDF error code (0xffff for
 ESP_FAIL). Successful cleanup does not erase the failure. This atomic diagnostic
 does not cause sensor I/O or waits on the USB owner.
+Stage 7 denotes the provisional driver-owned INT2 output-gate experiment:
+USB sets/readback-verifies CTRL1=0x50 after configure, under the issue #16
+comment 6213746553 conflict amendment. BLE does not opt in. Physical comparison
+must establish whether this restores DRDY; all source-loss targets remain intact.
 `drdy_levels_seen` describes GPIO13 levels observed by the slow preparation
 controller: bit 0=low observed, bit 1=high observed; zero=no observation. It resets
 on each begin and survives cleanup. These sparse digital observations are not an

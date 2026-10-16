@@ -50,6 +50,17 @@ It never silently tries both values. A failed witness latches FAULT. This is an
 explicit software policy resolving conflicting vendor prose, not physical proof
 that a particular board reset. CM-007 must observe real reset/identification.
 
+CM-009 also found an interrupt-output conflict during actual Matrix revision
+0x7C tests: CTRL1=0x40 permits sensor data/internal DRDY but GPIO13 remains low.
+Pinned Waveshare QMI8658C code defines CTRL1 bit4 as INT2_ENABLE (0x10), despite
+the Rev-A table marking it reserved. Issue #16 comment 6213746553 and the
+hardware-contract amendment permit a reversible USB-only experiment using
+`cmq_set_int2_output(true)` after configure. This typed stopped-state operation
+verifies CTRL1=0x50, preserves AI/little-endian, leaves INT1 disabled, and latches
+FAULT on I/O/readback failure. Reset/configure and the BLE application retain
+0x40. Physical comparison remains required; no automatic reserved-bit fallback
+or new sampling mode is introduced.
+
 The overview and detailed tables also list different default revision IDs
 (0x68 and 0x7C). Only WHO_AM_I is validated against a fixed value; the actual
 revision byte is exposed, not rejected or fabricated.

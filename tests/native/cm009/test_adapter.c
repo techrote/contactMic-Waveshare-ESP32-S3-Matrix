@@ -21,6 +21,8 @@ static void feed(const char *text)
 { input_length=strlen(text);CHECK(input_length<sizeof(input));memcpy(input,text,input_length);input_at=0; }
 static void io_guard(void) { CHECK(!frontend);++backend_calls; }
 cmq_result cmq_reset(cmq_device *d) {io_guard();d->state=CMQ_IDLE;return CMQ_OK;}
+cmq_result cmq_set_int2_output(cmq_device *d,bool enable)
+{io_guard();CHECK(d==runtime.device&&enable);return CMQ_OK;}
 esp_err_t cm_acq_idf_create(cmq_device *d,cm_acq_idf **out)
 {CHECK(d);*out=&acq;return ESP_OK;}
 esp_err_t cm_acq_idf_configure(cm_acq_idf *a,cm_acq_policy policy,cmq_axis axis,uint8_t range,cm_acq_mode ceiling)

@@ -44,6 +44,14 @@ Verified facts relevant to this project:
 
 Consequent repository policy: do not market or hard-code a literal 8,000 Hz source rate. Measure actual DRDY rate and report it in the stream/session metadata.
 
+CM-009 interrupt-gate conflict evidence (2026-10-16): Waveshare's QMI8658C driver
+defines CTRL1 INT2_ENABLE=0x10, conflicting with QST Rev-A's reserved-bit table.
+Pinned board-vendor references (different board; register evidence only):
+- https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.41-V2/blob/0eaf16cfae3440d445f2b6caa71e94065094551f/02_Example/Arduino/03_I2C_QMI8658/qmi8658c.h
+- https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.41-V2/blob/0eaf16cfae3440d445f2b6caa71e94065094551f/02_Example/ESP-IDF/10_FactoryProgram/components/qmi8658c/qmi8658c.c
+The bounded provisional exception is in `02-HARDWARE-CONTRACT.md` and issue #16
+comment 6213746553. The actual Matrix demo polls and does not prove DRDY gating.
+
 ## Espressif ESP32-S3 / ESP-IDF
 
 - ESP32-S3 BLE overview:

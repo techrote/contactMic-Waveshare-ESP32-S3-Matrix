@@ -63,6 +63,8 @@ static cmu_result source_begin(void *p, const cmu_config *config, uint32_t mode)
     esp_err_t rc = cm_acq_idf_configure(runtime.acquisition, policies[mode],
         axes[config->axis], (uint8_t)config->range_g, CM_ACQ_MODE_SAFE);
     if (rc != ESP_OK) return backend_result(rc, 2);
+    if (cmq_set_int2_output(runtime.device, true) != CMQ_OK)
+        return backend_result(ESP_FAIL, 7);
     return backend_result(cm_acq_idf_prepare(runtime.acquisition), 3);
 }
 static cmu_result source_ready(void *p, uint32_t *rate)

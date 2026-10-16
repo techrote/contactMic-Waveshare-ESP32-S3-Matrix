@@ -60,6 +60,18 @@ Additional ranges may be exposed if low-cost.
 
 The sensor driver owns QMI8658 configuration. Other components must not write QMI registers directly.
 
+CM-009 provisional interrupt-gate amendment (issue #16 comment 6213746553):
+Rev-A Table 22 labels CTRL1[4:3] reserved, but pinned Waveshare QMI8658C code
+(`0eaf16cfae3440d445f2b6caa71e94065094551f` in its
+ESP32-S3-Touch-AMOLED-2.41-V2 repository) defines bit4 as INT2 output enable.
+Real Matrix revision 0x7C produces data/internal DRDY with CTRL1=0x40 but no
+observed GPIO13 edges, including after power cycling. A driver-owned typed,
+readback-verified USB-only experiment may set CTRL1=0x50 after configuration,
+preserving AI/little-endian and leaving INT1 disabled. This provisional exception
+requires physical comparison against preserved failures; it does not authorize
+other reserved-bit changes or alter BLE configuration/defaults. A failed
+experiment must be preserved and reverted; success needs affected requalification.
+
 The driver must expose typed operations for:
 
 - reset/probe;

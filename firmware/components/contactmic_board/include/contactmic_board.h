@@ -61,6 +61,9 @@ cmq_result cmq_configure(cmq_device *, const cmq_config *);
 cmq_result cmq_start(cmq_device *);
 cmq_result cmq_stop(cmq_device *);
 cmq_result cmq_set_drdy(cmq_device *, bool enabled);
+/* CM-009 vendor-conflict experiment, configured/stopped only; see hardware
+ * contract. USB explicitly opts in; configure/reset and BLE keep CTRL1=0x40. */
+cmq_result cmq_set_int2_output(cmq_device *, bool enabled);
 cmq_result cmq_read_axis(cmq_device *, cmq_axis, int16_t *sample);
 cmq_result cmq_read_selected(cmq_device *, int16_t *sample);
 /* Read-only failure diagnosis, not acquired samples. Bytes: CTRL1/2/3/7/8,

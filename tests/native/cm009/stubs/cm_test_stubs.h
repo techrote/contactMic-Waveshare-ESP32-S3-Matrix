@@ -15,6 +15,7 @@ enum {CMQ_IDLE,CMQ_FAULT};
 typedef enum {CMQ_X,CMQ_Y,CMQ_Z} cmq_axis;
 typedef struct {int state; uint8_t who_am_i,address,revision;} cmq_device;
 cmq_result cmq_reset(cmq_device *);
+cmq_result cmq_set_int2_output(cmq_device *,bool);
 typedef enum {CM_ACQ_POLICY_SAFE,CM_ACQ_POLICY_MEDIUM,CM_ACQ_POLICY_HIGH} cm_acq_policy;
 typedef enum {CM_ACQ_MODE_SAFE,CM_ACQ_MODE_MEDIUM,CM_ACQ_MODE_HIGH} cm_acq_mode;
 typedef struct {uint32_t index; int16_t value;} cm_acq_sample;

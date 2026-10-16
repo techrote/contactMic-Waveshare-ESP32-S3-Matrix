@@ -252,3 +252,29 @@ Because MCU resets/flash did not remove sensor power, a controlled board-only
 USB unplug/replug has been requested to test retained peripheral/pad state.
 This diagnostic cycle is not a passing audio lifecycle cycle. Required accepted
 capture and lifecycle counts remain unfulfilled.
+
+The operator completed the board-only five-second USB power cycle, LEDs off and
+no warnings. Re-enumerated COM11/full-serial WASAPI input 12; new boot
+`3601029680` and same 717dce8 ELF. `preflight-powercycle-009/` failed identically,
+with sensor probe words `40030303 00000103 47015D3F 40030303 00000003 5B014C3F
+00010001 00000001`, zero source intervals. MCU configuration and data activity
+do not establish electrical integrity of the physical DRDY net.
+
+Vendor conflict and bounded experiment were recorded before register changes
+on #16 comment `6213746553`. QST Rev-A marks CTRL1[4:3] reserved; Waveshare's
+QMI8658C driver at commit `0eaf16cfae3440d445f2b6caa71e94065094551f` defines
+INT2_ENABLE=0x10 and uses it for output enable. Raw pinned vendor C/header files
+are retained locally, SHA-256 respectively
+`f8c2cfa740408d33f197827d3afc519976d23a997a18cd2e1798d57a64f69827` and
+`4751e42320bbfd4f4524d9852140ccb3a1a517c2c8e66ccb57440bdaae72ee5c`.
+The official Matrix demo archive SHA-256 is
+`b2aa108af96a59f83b40f9d0cd2be21d67f5422e6b51e50093fd4a1c2dc25d9d`;
+it polls via an external SensorQMI8658 library and does not establish DRDY gating.
+No unrelated demo settings are adopted.
+
+The provisional hardware contract now allows USB to opt into one driver-owned,
+readback-verified CTRL1=0x50 operation after configure, with unchanged AI/BE,
+INT1 off, source modes, FIFO and thresholds. BLE does not call it. Failure latches
+FAULT. Native tests cover both writes/readback failures, invalid running-state
+calls, and selected-axis read compatibility. Physical comparison is pending.
+Exact-head dea88e1 CI `38888569968` passed all eight jobs before this experiment.

@@ -175,6 +175,16 @@ cmq_result cmq_set_drdy(cmq_device *d, bool enabled)
     if (rc != CMQ_OK) return fault(d, rc);
     d->config.drdy_enabled = enabled; return CMQ_OK;
 }
+cmq_result cmq_set_int2_output(cmq_device *d, bool enabled)
+{
+    if (!d) return CMQ_INVALID;
+    if (d->state != CMQ_CONFIGURED) return CMQ_STATE;
+    /* Waveshare QMI8658C INT2_ENABLE=0x10 conflicts with Rev-A reserved bits.
+     * Explicit CM-009 hardware-contract exception, not a fallback register scan.
+     * Preserve accepted AI=1 / BE=0; no INT1 output enable. */
+    cmq_result rc = verified_write(d, CTRL1, enabled ? 0x50 : 0x40);
+    return rc == CMQ_OK ? rc : fault(d, rc);
+}
 cmq_result cmq_read_axis(cmq_device *d, cmq_axis axis, int16_t *out)
 {
     if (!d || !out || !valid_axis(axis)) return CMQ_INVALID;
