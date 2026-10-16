@@ -12,6 +12,8 @@ static unsigned backend_calls,usb_init_calls,phy_calls,task_calls;
 static uint64_t clock_us;
 static esp_err_t configure_error, prepare_error;
 static uint32_t measured_rate = 1000000;
+static int drdy_level;
+int gpio_get_level(gpio_num_t pin) {CHECK(!frontend&&pin==13);return drdy_level;}
 static char input[2048],captured[8192];
 static size_t input_at,input_length,captured_length;
 static uint8_t last_audio[96];
@@ -137,8 +139,11 @@ int main(void)
     CHECK(source_begin(NULL,&runtime.core.config,0)==CMU_IO);
     CHECK(runtime.backend_failure==((3u<<16)|0xffffu));
     prepare_error=ESP_OK;CHECK(source_begin(NULL,&runtime.core.config,0)==CMU_OK);
-    measured_rate=0;uint32_t rate;
+    measured_rate=0;uint32_t rate;drdy_level=1;
     CHECK(source_ready(NULL,&rate)==CMU_IO);
+    CHECK(runtime.drdy_levels_seen==2);
+    drdy_level=0;CHECK(source_ready(NULL,&rate)==CMU_IO);
+    CHECK(runtime.drdy_levels_seen==3);
     CHECK(runtime.backend_failure==((4u<<16)|0xffffu));
     CHECK(source_stop(NULL)==CMU_OK);
     CHECK(runtime.backend_failure==((4u<<16)|0xffffu));

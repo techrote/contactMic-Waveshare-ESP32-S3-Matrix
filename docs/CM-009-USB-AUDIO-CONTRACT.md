@@ -191,6 +191,10 @@ status/identity can be queried after opening CDC even when boot text was missed.
 Zero means none observed; the low word is the ESP-IDF error code (0xffff for
 ESP_FAIL). Successful cleanup does not erase the failure. This atomic diagnostic
 does not cause sensor I/O or waits on the USB owner.
+`drdy_levels_seen` describes GPIO13 levels observed by the slow preparation
+controller: bit 0=low observed, bit 1=high observed; zero=no observation. It resets
+on each begin and survives cleanup. These sparse digital observations are not an
+edge count, pulse-width measurement or substitute for the acquisition denominator.
 
 Replies use `cm009.v1`, correlate `request_id`, and include stable serial, boot ID,
 reset reason, firmware/ELF identities, QMI identity, generation/state/reason, mode,

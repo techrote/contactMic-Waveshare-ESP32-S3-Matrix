@@ -179,3 +179,26 @@ It adds no I2C to USB callbacks and does not change driver registers or threshol
 The native adapter tests cover failure stages and retention across cleanup; all
 13 native tests and the pinned USB build pass. The operator confirmed recovery
 for this diagnostic build. Further physical results remain pending.
+
+## Zero-edge preparation diagnosis
+
+Clean head `6960becf28acdf2bd257d7cba7218f198b1b2495` was flashed; runtime
+ELF identity matched `588b78c765be90c1050686a6c54a0b5173a9c5a354ab9a1ffd099a7aab6ef9c9`
+(binary SHA-256 `edb4bc57983d85b6d597817bd2864a5cd7daf71951988fc0b055cf9904758494`).
+An intentional esptool watchdog reset exited ROM and application COM11 returned.
+The disappearing ROM port caused a serial cleanup error, preserved in the log;
+application identity, rather than that command's exit code, established boot.
+
+`preflight-002`, `preflight-medium-003` and `preflight-high-004` each aborted
+after the preparation window. Retained diagnostic `327679` is stage 4 / ESP_FAIL:
+configuration and start succeeded, but the completed rate measurement had zero
+edges. Source intervals remained zero in every mode. These are failed startup
+attempts, not evaluated ten-second runs or sustained qualification; no valid
+miss fraction exists. All raw replies, summaries and manifests are retained in
+their separate ignored `build/cm009/` directories.
+
+The next diagnostic observes GPIO13 levels from the slow preparation controller,
+retaining low/high bits without changing sensor configuration or the ISR. Sparse
+level observations cannot establish a pulse rate. Native coverage checks both
+levels and controller ownership; all 13 native tests and the pinned USB build
+pass. The operator confirmed BOOT/RESET recovery for this targeted diagnostic.

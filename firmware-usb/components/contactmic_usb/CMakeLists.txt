@@ -1,7 +1,7 @@
 idf_component_register(SRCS "cm_usb.c" "cm_usb_descriptors.c" "cm_usb_idf.c"
     INCLUDE_DIRS "include"
     PRIV_REQUIRES contactmic_board contactmic_acquisition freertos esp_timer
-                  esp_hw_support esp_app_format esp_system esp_mm usb)
+                  esp_hw_support esp_app_format esp_system esp_mm usb esp_driver_gpio)
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
     include(${CMAKE_CURRENT_LIST_DIR}/dependencies.lock.cmake)
     include(FetchContent)
