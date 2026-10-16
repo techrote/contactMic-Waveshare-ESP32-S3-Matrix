@@ -196,14 +196,19 @@ controller: bit 0=low observed, bit 1=high observed; zero=no observation. It res
 on each begin and survives cleanup. These sparse digital observations are not an
 edge count, pulse-width measurement or substitute for the acquisition denominator.
 After a completed zero-rate failure only, the controller retains two read-only
-sensor snapshots 20 ms apart under acquisition ownership. `zero_rate_probe_result`
+sensor snapshots with a bounded 20 ms GPIO observation between them under
+acquisition ownership. `zero_rate_probe_result`
 is zero before observation, one on success, or 0x10000 OR the low 16 bits of the
-ESP error on failure. The six `zero_rate_probe` words encode bytes in display
+ESP error on failure. The first six `zero_rate_probe` words encode bytes in display
 (most significant first) order, three words per snapshot: CTRL1/2/3/7,
 CTRL8/FIFO_CTRL/STATUSINT/STATUS0, timestamp low/mid and selected-axis low/high.
 These sequential bytes may tear and are diagnostic observations, never samples
 or a rate/loss denominator. Probe reads count in driver I2C diagnostics and do
 not run on USB callbacks or on a successful preparation path.
+Word 6 records GPIO13 mux function in bits 31:16 and input/output/pull-up/pull-down
+enable in bits 0/1/2/3. Word 7 is the low/high level mask observed during bounded
+failure-only polling with interrupts enabled. This is neither a pulse count nor
+an electrical compliance observation.
 
 Replies use `cm009.v1`, correlate `request_id`, and include stable serial, boot ID,
 reset reason, firmware/ELF identities, QMI identity, generation/state/reason, mode,

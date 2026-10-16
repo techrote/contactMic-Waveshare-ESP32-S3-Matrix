@@ -437,7 +437,7 @@ cm_acq *cm_acq_idf_core(cm_acq_idf *ctx)
     return ctx ? &ctx->core : NULL;
 }
 
-esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *ctx, uint32_t out[6])
+esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *ctx, uint32_t out[8])
 {
     if (!ctx || !out) return ESP_ERR_INVALID_ARG;
     xSemaphoreTake(ctx->gate, portMAX_DELAY);
@@ -445,15 +445,28 @@ esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *ctx, uint32_t out[6])
     if (load_flag(&ctx->measurement_done) && !cm_acq_measured_rate_millihz(&ctx->core)
         && load_flag(&ctx->running) && !load_flag(&ctx->publication)) {
         uint8_t bytes[24];
+        gpio_io_config_t io;
+        uint32_t levels = 0;
         rc = map_qmi(cmq_diagnostic_snapshot(ctx->device, bytes));
         if (rc == ESP_OK) {
-            vTaskDelay(pdMS_TO_TICKS(20));
+            rc = gpio_get_io_config((gpio_num_t)CMQ_INT2_GPIO, &io);
+        }
+        if (rc == ESP_OK) {
+            /* Failure-only bounded polling, never an acquisition substitute.
+             * IRQs remain enabled. USB/higher-priority tasks can preempt us. */
+            uint64_t end = (uint64_t)esp_timer_get_time() + 20000u;
+            do {
+                levels |= gpio_get_level((gpio_num_t)CMQ_INT2_GPIO) ? 2u : 1u;
+            } while ((uint64_t)esp_timer_get_time() < end);
             rc = map_qmi(cmq_diagnostic_snapshot(ctx->device, bytes + 12));
         }
         if (rc == ESP_OK) {
             for (size_t i = 0; i < 6; ++i)
                 out[i] = ((uint32_t)bytes[4*i] << 24) | ((uint32_t)bytes[4*i+1] << 16)
                     | ((uint32_t)bytes[4*i+2] << 8) | bytes[4*i+3];
+            out[6] = ((uint32_t)io.fun_sel << 16) | (io.ie ? 1u : 0u)
+                | (io.oe ? 2u : 0u) | (io.pu ? 4u : 0u) | (io.pd ? 8u : 0u);
+            out[7] = levels;
         }
     }
     xSemaphoreGive(ctx->gate);

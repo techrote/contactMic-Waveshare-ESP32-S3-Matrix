@@ -32,8 +32,8 @@ bool cm_acq_idf_measurement_ready(const cm_acq_idf *a){return a->ready;}
 bool cm_acq_idf_publishing(const cm_acq_idf *a){return a->live;}
 uint32_t cm_acq_idf_measured_rate_millihz(const cm_acq_idf *a){(void)a;return measured_rate;}
 cm_acq *cm_acq_idf_core(cm_acq_idf *a){return &a->core;}
-esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *a,uint32_t out[6])
-{io_guard();CHECK(a==&acq&&measured_rate==0);for(unsigned i=0;i<6;i++)out[i]=i+1;return ESP_OK;}
+esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *a,uint32_t out[8])
+{io_guard();CHECK(a==&acq&&measured_rate==0);for(unsigned i=0;i<8;i++)out[i]=i+1;return ESP_OK;}
 size_t cm_acq_count(const cm_acq *a){return a->head-a->tail;}
 bool cm_acq_peek(const cm_acq *a,size_t n,cm_acq_sample *out)
 {if(n>=cm_acq_count(a))return false;*out=a->samples[(a->tail+n)%256];return true;}

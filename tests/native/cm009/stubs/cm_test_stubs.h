@@ -30,7 +30,7 @@ bool cm_acq_idf_measurement_ready(const cm_acq_idf *);
 bool cm_acq_idf_publishing(const cm_acq_idf *);
 uint32_t cm_acq_idf_measured_rate_millihz(const cm_acq_idf *);
 cm_acq *cm_acq_idf_core(cm_acq_idf *);
-esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *,uint32_t out[6]);
+esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *,uint32_t out[8]);
 bool cm_acq_peek(const cm_acq *,size_t,cm_acq_sample *);
 size_t cm_acq_consume(cm_acq *,size_t);
 size_t cm_acq_count(const cm_acq *);

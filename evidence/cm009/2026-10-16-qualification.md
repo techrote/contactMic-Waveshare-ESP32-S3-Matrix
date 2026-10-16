@@ -218,3 +218,21 @@ bytes without publishing those bytes as audio or counting them as source reads.
 Driver I/O failures remain counted. Native tests cover read-only behavior,
 every read failure preserving the caller output, and rejection outside zero-rate
 calibration. All 13 native tests passed after this instrumentation.
+
+Sensor-state head `c4f80657e4d62045eb0f34e5420e55985be15efa` was flashed with
+runtime ELF `fa77193b4a1e236608d2cf0d77a4587c6856918e9c2510eef1aa98dcff57652c`
+and binary `faa06e39b54a694327d0d181e0180b30128f6a915e5bf630e6f9bcf99bdb53e8`.
+The first `preflight-registers-006/` correctly refused configuration because a
+Windows capture client was active; the operator then confirmed Settings/input
+apps closed. `preflight-registers-007/` reached the zero-rate failure and retained
+successful diagnostic words `40030303 00000103 4701FB3E` then
+`40030303 00000003 5B012E3F`. Thus configured controls matched policy; timestamp
+and selected-axis bytes changed, and internal DRDY status was high in one
+snapshot, while no GPIO13 intervals were counted. These sequential diagnostic
+bytes are not acquired samples or an independent-clock qualification.
+
+The next probe also reads GPIO13's actual mux/input/output/pull configuration and
+observes levels for a bounded 20 ms with interrupts enabled after the failed
+measurement. It never drives the pin or substitutes polling for acquisition.
+All 13 native tests pass, including the encoded input configuration and bounded
+probe behavior. Seven CM-006 integration tests also passed on c4f8065.

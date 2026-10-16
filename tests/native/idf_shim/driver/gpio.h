@@ -8,6 +8,8 @@ typedef int gpio_num_t;
 #define GPIO_PULLDOWN_DISABLE 0
 #define GPIO_INTR_POSEDGE 1
 typedef struct {uint64_t pin_bit_mask; int mode, pull_up_en, pull_down_en, intr_type;} gpio_config_t;
+typedef struct {uint32_t fun_sel; int ie,oe,pu,pd;} gpio_io_config_t;
+esp_err_t gpio_get_io_config(gpio_num_t,gpio_io_config_t *);
 esp_err_t gpio_config(const gpio_config_t *);
 esp_err_t gpio_install_isr_service(int);
 void gpio_uninstall_isr_service(void);
