@@ -23,3 +23,9 @@ htmlcov/
 .idea/
 .DS_Store
 Thumbs.db
+
+# CM-009 uses an independent USB firmware build and configuration cache.
+/firmware-usb/build/
+/firmware-usb/sdkconfig
+/firmware-usb/sdkconfig.old
+/firmware-usb/managed_components/

@@ -24,9 +24,10 @@ Preferred high/medium path:
 3. ISR records/wakes only; it must not perform I2C transactions or BLE work;
 4. a high-priority acquisition task reads exactly the selected accelerometer axis;
 5. sample and monotonic source-sample index are pushed into a bounded queue/ring;
-6. BLE consumes from that queue independently.
+6. the selected transport consumes from that queue independently.
 
-No BLE API may run in the acquisition critical path.
+No BLE, USB or CDC API may run in the acquisition critical path. USB/BLE build
+profiles are exclusive; the SPSC ring must not acquire two consumers.
 
 ## Timing and loss accounting
 
@@ -42,7 +43,7 @@ Maintain at least:
 
 Do not silently duplicate/hold samples in firmware to disguise a missed sensor interval.
 
-If a source interval is missing, preserve the discontinuity in sample-index/telemetry so the host can decide how to conceal it.
+If a source interval is missing, preserve the discontinuity in sample-index/telemetry. BLE lets the host decide bounded concealment; CM-009 USB applies only the separately counted, bounded on-device policy in its USB contract.
 
 ## Rate measurement
 
@@ -66,7 +67,7 @@ Use a bounded power-of-two ring or equivalent bounded structure.
 
 Requirements:
 
-- producer cannot block on BLE;
+- producer cannot block on BLE, USB or CDC;
 - overflow increments an observable counter;
 - packetizer can retrieve ordered samples plus their first sample index;
 - disconnect/reconnect creates a clear new stream/session boundary;
@@ -74,9 +75,31 @@ Requirements:
 
 ## Sample representation
 
-Firmware transport uses signed 16-bit little-endian accelerometer samples in the sensor's native signed representation unless a later protocol-major change says otherwise.
+BLE firmware transport uses signed 16-bit little-endian accelerometer samples in the sensor's native signed representation unless a later protocol-major change says otherwise.
 
-Gravity/DC removal, gain and resampling belong on the host so raw mechanical information and clipping behavior remain inspectable.
+For BLE, gravity/DC removal, gain and resampling belong on the host so raw mechanical information and clipping behavior remain inspectable.
+
+CM-009 explicitly authorizes device-side DC/gain/limiting and resampling for native
+USB audio. UAC2 carries standard 48 kHz mono PCM16, never custom index headers.
+Indices remain internal; generation/output-position-correlated CDC diagnostics
+retain measured rate, source intervals/misses, raw rail observations, gap filling,
+starvation and queue/clock corrections. Gain 1 and cutoff 0 provide the diagnostic
+pre-DSP route, still resampled. The output format is not a source-rate promise.
+
+USB-host/sensor clock drift must be reconciled with bounded buffers; a one-time
+nominal ratio alone is insufficient. The clock servo and conservative silence/
+reprime rules are defined and tested in `docs/CM-009-USB-AUDIO-CONTRACT.md`.
+Defaults and adaptive source transitions are transport-specific. USB observations
+must not silently change BLE's qualified or unqualified default status.
+
+CM-009's 2026-10-16 physical attempts are blocked by read-window timing, not USB
+format negotiation. Medium/high fail short preflight; approximate observed DRDY
+high windows are below the measured I2C-call duration. Safe-mode evidence is not
+medium acceptance. Preserve the 400 kHz ceiling and validity/loss rules; any
+vendor-backed coherency reinterpretation or acquisition-mode change needs an
+explicit reviewed contract amendment before implementation. See the CM-009
+evidence report; these observations do not certify BLE hardware or change its
+defaults.
 
 ## Testability
 

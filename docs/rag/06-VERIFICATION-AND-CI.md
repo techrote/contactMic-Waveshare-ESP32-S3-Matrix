@@ -16,7 +16,8 @@ Every PR must run the layers relevant to its changes; by system-integration time
 
 - configure target ESP32-S3;
 - build cleanly under pinned ESP-IDF;
-- warnings introduced by project code are treated seriously and must not be blindly suppressed.
+- warnings introduced by project code are treated seriously and must not be blindly suppressed;
+- CM-009 builds both the retained BLE project and isolated USB-only project, without sharing sdkconfig/build outputs or enabling radios in USB qualification.
 
 ### Native/core tests
 
@@ -59,6 +60,17 @@ Fault injection must cover:
 - sample-index/sequence wrap boundaries;
 - malformed control writes.
 
+### CM-009 USB software extension
+
+Add tests of production UAC descriptors/clock controls/PCM transfer bounds, the
+actual IDF USB callbacks against explicit external API fakes, accepted acquisition
+feeding the USB DSP path, and long independent USB/sensor clock simulations in
+both drift directions. Exercise gaps, zero fill, saturation/overflow, stale lifecycle
+completions, capture reopen/reset/suspend, absent/slow/flooded CDC and bounded work.
+The installed USB runner must test fake OS-input/CDC devices, ambiguous identity,
+short capture, telemetry/counter gaps, abort/cleanup, host overflow and immutable
+evidence integrity. A fake-device pass is not a physical enumeration observation.
+
 ## CI polling discipline
 
 Agents monitoring GitHub Actions must obey `AGENTS.md`: at least 120 seconds between status queries while checks remain pending/running.
@@ -67,7 +79,7 @@ Do not compensate for slow jobs with tight polling.
 
 ## Hardware-in-loop qualification
 
-Hardware issue CM-007 is the first issue allowed to make real-board performance claims.
+Hardware issue CM-007 is the first issue allowed to make real-board BLE performance claims.
 
 Required evidence on a stock Waveshare ESP32-S3-Matrix:
 
@@ -117,10 +129,39 @@ Capture at least short reproducible examples for:
 
 Compare X/Y/Z and +/-2 g vs +/-4 g enough to choose the production default. Record clipping and noise observations; do not claim subjective fidelity as a numeric metric.
 
+## Independent CM-009 USB physical qualification
+
+CM-009/#16 may qualify the stock board over USB without a Bluetooth-capable host;
+it must not close CM-007 or claim BLE RF acceptance. Preserve the same high/medium
+source-miss and I2C targets above, using actual matched-generation source interval
+counters rather than the 48 kHz output count. USB input capture replaces BLE MTU/
+PHY and live-playback-underrun observations with measured USB/host-capture checks.
+
+Require native Windows UAC input in an ordinary recorder, queryable same-board CDC
+identity/control, verified BOOT/RESET recovery, at least 600 seconds of continuous
+high capture and 600 seconds medium, no unexpected resets/crashes or unbounded
+backlog, and no sustained USB starvation/clock drift. Every steady-state silence,
+short write, host overflow, queue discard or discontinuity needs failure/review
+handling. Unknown bus errors are unavailable, not zero. A 600-second command alone
+is not proof of a 600-second valid recording.
+
+Test ten recording close/reopens, five cable reconnects, supported suspend/resume,
+closed/slow CDC and invalid configuration recovery. Require the six axis/range
+comparisons, LEDs-off observations and direct-contact examples unless exact matching
+physical evidence already exists. USB electrical/suspend behavior, native drivers
+and physical timing cannot be accepted from mocks. Unsupported physical checks
+remain held. USB-specific production defaults require this evidence; if high fails
+and medium passes, select medium for USB without modifying BLE's evidence status.
+
+The reproducible commands, metadata and interpretation are in
+`docs/CM-009-USB-AUDIO-CONTRACT.md`. Keep raw evidence in ignored `build/cm009/` and
+reviewed concise results under `evidence/cm009/`. Never overwrite failed raw runs
+or manufacture physical results from synthetic regression fixtures.
+
 ## Merge policy
 
 Required automated checks must be green before merge.
 
-Hardware-required checks may be separate from ordinary PR CI, but CM-007 itself cannot be accepted without physical evidence.
+Hardware-required checks may be separate from ordinary PR CI, but CM-007 itself cannot be accepted without physical evidence. CM-009's software-complete/hardware-held checkpoint likewise leaves issue #16 open and its PR draft; its full acceptance needs the independent physical USB evidence.
 
 After merge, agents follow the post-merge verification protocol in `AGENTS.md`.

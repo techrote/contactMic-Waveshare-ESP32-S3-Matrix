@@ -8,6 +8,10 @@ Initial implementation language: Python 3.
 
 Primary libraries may include Bleak, NumPy and python-sounddevice.
 
+This original bridge contract governs BLE. CM-009 adds a native USB input with
+on-device processing; its exceptions and independent evidence runner are described
+in the final section and `docs/CM-009-USB-AUDIO-CONTRACT.md`.
+
 ## Layering
 
 Keep these layers separable:
@@ -68,7 +72,7 @@ Minimum sinks:
 - live `sounddevice` output to a selected device;
 - WAV recording.
 
-The project does not implement an OS kernel microphone driver. For applications requiring a microphone endpoint, route the receiver output to an installed virtual audio cable and select that cable's recording endpoint in the application.
+The project does not implement an OS kernel microphone driver. For applications requiring a microphone endpoint from BLE, route the receiver output to an installed virtual audio cable and select that cable's recording endpoint in the application.
 
 ## CLI
 
@@ -92,3 +96,24 @@ Use bounded buffers.
 Do not accumulate unbounded latency when the audio sink falls behind. Prefer dropping old buffered output with a diagnostic over allowing seconds of lag.
 
 A later hardware qualification should report approximate steady-state latency and jitter; CI should stress bounded-buffer behavior deterministically.
+
+## CM-009 native USB host path
+
+UAC2 exposes a 48 kHz mono PCM16 OS recording input with on-device DSP/resampling.
+Ordinary audio use must not require this Python package, Bleak, CDC to be open,
+a virtual audio cable or a custom audio kernel driver. Native Windows behavior
+remains a physical acceptance check, not an implication of firmware compilation.
+
+Optional `contactmic-usb-qualify` uses the separate `host[usb]` extra (sounddevice
+and pyserial, no BLE dependency) to capture the OS microphone and same-board CDC
+telemetry. It performs exact serial/endpoint selection, stopped-state configuration,
+record-only input and bounded optional WAV writing. It never starts a speaker or
+subwoofer stimulus. Avoid routing microphone monitoring into an excitation speaker.
+
+Standard USB PCM has no per-source sample index. Infer neither source quality nor
+absence of loss from a continuous WAV. Match source counter windows by board,
+boot/build, generation and output position, retain startup/shutdown records and
+mark unknown bus observations unavailable. Missing telemetry, resets, short capture,
+source-counter saturation/regression, host overflow and unreviewed silence/clock/
+queue observations must prevent an automatic pass. Run-level success is not full
+CM-009 acceptance or transferable BLE qualification.

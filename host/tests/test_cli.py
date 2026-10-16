@@ -4,9 +4,9 @@ import importlib.metadata
 import io
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -17,8 +17,14 @@ from contactmic.receiver import ReceiverError
 
 class CliTests(unittest.TestCase):
     def run_cli(self,*args,console=False,columns=80):
-        exe=shutil.which('contactmic') if console else sys.executable
-        self.assertIsNotNone(exe,'Install ./host first')
+        # Resolve the entry point belonging to this interpreter, not an
+        # unrelated installation (or no installation) on the caller's PATH.
+        if console:
+            name = 'contactmic.exe' if os.name == 'nt' else 'contactmic'
+            exe = Path(sysconfig.get_path('scripts')) / name
+            self.assertTrue(exe.is_file(), f'Install ./host into {sys.prefix} first')
+        else:
+            exe = sys.executable
         command=[exe] if console else [exe,'-I','-m','contactmic']
         env=os.environ.copy();env.pop('PYTHONPATH',None);env['COLUMNS']=str(columns)
         with tempfile.TemporaryDirectory() as cwd:
@@ -44,6 +50,14 @@ class CliTests(unittest.TestCase):
         for console in (False,True):
             result=self.run_cli('--version',console=console)
             self.assertEqual(result.returncode,0);self.assertEqual(result.stdout.strip(),f'contactmic {contactmic.__version__}')
+
+    def test_console_uses_current_environment_without_path_activation(self):
+        # CI invokes the venv interpreter directly. Activation is neither
+        # necessary nor proof that an entry point belongs to the tested wheel.
+        with patch.dict(os.environ, {'PATH': ''}):
+            result = self.run_cli('--version', console=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), f'contactmic {contactmic.__version__}')
 
     def test_no_arguments_and_callable(self):
         self.assertIn('usage:',self.run_cli().stdout)

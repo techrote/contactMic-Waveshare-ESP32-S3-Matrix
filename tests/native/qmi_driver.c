@@ -25,7 +25,7 @@ static cmq_bus_result read_bytes(void *ctx, uint8_t addr, uint8_t reg, uint8_t *
     CHECK(addr >= 0x6a && addr <= 0x6b); CHECK(n == 1 || n == 2);
     if (fail(f)) return CMQ_BUS_ERROR;
     if (!f->present[addr - 0x6a]) return CMQ_BUS_ABSENT;
-    if (n == 2) CHECK(f->regs[addr - 0x6a][2] == 0x40); /* AI and LE configured. */
+    if (n == 2) CHECK((f->regs[addr - 0x6a][2] & 0xef) == 0x40); /* AI and LE; scoped INT2 gate. */
     memcpy(out, &f->regs[addr - 0x6a][reg], n); return CMQ_BUS_OK;
 }
 static cmq_bus_result write_byte(void *ctx, uint8_t addr, uint8_t reg, uint8_t value)
@@ -168,9 +168,43 @@ static void test_invalid(void)
     CHECK(f.calls == calls); CHECK(cmq_nominal_rate_millihz((cmq_mode)5) == 0);
     CHECK(cmq_settling_us((cmq_mode)-1) == 0);
 }
+static void test_diagnostics(void)
+{
+    fake f; cmq_device d; ready(&f,&d);cmq_config c=configuration();
+    CHECK(cmq_configure(&d,&c)==CMQ_OK);CHECK(cmq_start(&d)==CMQ_OK);
+    const uint8_t regs[12]={2,3,4,8,9,0x14,0x2d,0x2e,0x30,0x31,0x39,0x3a};
+    uint8_t bytes[12];size_t writes=f.writes;uint64_t samples=d.counters.samples_read;
+    for(size_t i=0;i<12;i++)f.regs[1][regs[i]]=(uint8_t)(i+16);
+    CHECK(cmq_diagnostic_snapshot(&d,bytes)==CMQ_OK);
+    for(size_t i=0;i<12;i++)CHECK(bytes[i]==i+16);
+    CHECK(f.writes==writes && d.counters.samples_read==samples);
+    for(size_t call=1;call<=12;call++) {
+        f.fail_at=f.calls+call;memset(bytes,0xcc,12);
+        CHECK(cmq_diagnostic_snapshot(&d,bytes)==CMQ_IO);
+        for(size_t i=0;i<12;i++)CHECK(bytes[i]==0xcc);
+    }
+    CHECK(d.state==CMQ_RUNNING && f.writes==writes);
+}
+static void test_int2_gate(void)
+{
+    fake f;cmq_device d;ready(&f,&d);cmq_config c=configuration();
+    CHECK(cmq_set_int2_output(&d,true)==CMQ_STATE);
+    CHECK(cmq_configure(&d,&c)==CMQ_OK && f.regs[1][2]==0x40);
+    CHECK(cmq_set_int2_output(&d,true)==CMQ_OK && f.regs[1][2]==0x50);
+    CHECK(cmq_start(&d)==CMQ_OK);int16_t value;
+    CHECK(cmq_read_selected(&d,&value)==CMQ_OK);
+    size_t calls=f.calls;CHECK(cmq_set_int2_output(&d,false)==CMQ_STATE && f.calls==calls);
+    CHECK(cmq_stop(&d)==CMQ_OK);CHECK(cmq_set_int2_output(&d,false)==CMQ_OK && f.regs[1][2]==0x40);
+    for(size_t call=1;call<=2;call++) {
+        ready(&f,&d);CHECK(cmq_configure(&d,&c)==CMQ_OK);f.fail_at=f.calls+call;
+        CHECK(cmq_set_int2_output(&d,true)==CMQ_IO && d.state==CMQ_FAULT);
+    }
+    ready(&f,&d);CHECK(cmq_configure(&d,&c)==CMQ_OK);f.corrupt_write=true;
+    CHECK(cmq_set_int2_output(&d,true)==CMQ_VERIFY && d.state==CMQ_FAULT);
+}
 int main(void)
 {
-    test_probe(); test_configuration(); test_failures(); test_samples(); test_invalid();
+    test_probe(); test_configuration(); test_failures(); test_samples(); test_invalid();test_diagnostics();test_int2_gate();
     puts("QMI driver: probe, register policy, recovery, boundary and fault-injection tests passed");
     return 0;
 }

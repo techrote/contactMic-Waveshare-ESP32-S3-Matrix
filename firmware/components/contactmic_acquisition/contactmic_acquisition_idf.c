@@ -35,7 +35,14 @@ struct cm_acq_idf {
     bool configured;
     bool isr_added;
     bool owns_isr_service;
+    cm_acq_idf_timing timing;
 };
+
+static void diagnostic_add(uint32_t *p, uint32_t n)
+{
+    uint32_t v = __atomic_load_n(p, __ATOMIC_RELAXED);
+    __atomic_store_n(p, UINT32_MAX - v < n ? UINT32_MAX : v + n, __ATOMIC_RELEASE);
+}
 
 static uint32_t load_flag(const uint32_t *flag)
 {
@@ -75,13 +82,17 @@ static cmq_mode qmi_mode(cm_acq_mode mode)
     }
 }
 
-static bool read_window_open(cm_acq_idf *ctx)
+static bool read_window_open(cm_acq_idf *ctx, bool after)
 {
     portENTER_CRITICAL(&ctx->pending_lock);
-    bool valid = ctx->pending_edges == 0 &&
-                 gpio_get_level((gpio_num_t)CMQ_INT2_GPIO) != 0;
+    bool pending = ctx->pending_edges != 0;
+    bool high = gpio_get_level((gpio_num_t)CMQ_INT2_GPIO) != 0;
     portEXIT_CRITICAL(&ctx->pending_lock);
-    return valid;
+    /* Mutually exclusive per-check diagnostics; source_faults is still the
+     * single failed-read count. Never add these as independent source losses. */
+    if (pending) diagnostic_add(after ? &ctx->timing.post_pending : &ctx->timing.pre_pending, 1);
+    else if (!high) diagnostic_add(after ? &ctx->timing.post_low : &ctx->timing.pre_low, 1);
+    return !pending && high;
 }
 
 static cm_acq_read_result read_selected(void *opaque, int16_t *sample)
@@ -90,11 +101,21 @@ static cm_acq_read_result read_selected(void *opaque, int16_t *sample)
     /* CM-002 requires the DRDY-high window. Never publish an I2C-success value
      * after an observed intervening edge/update. Physical interrupt latency and
      * bus-window feasibility still require CM-007 measurement. */
-    if (!read_window_open(ctx)) return CM_ACQ_READ_FAULT;
+    if (!read_window_open(ctx, false)) return CM_ACQ_READ_FAULT;
     int16_t value;
+    uint64_t start = (uint64_t)esp_timer_get_time();
     cmq_result result = cmq_read_selected(ctx->device, &value);
+    bool valid = result == CMQ_OK && read_window_open(ctx, true);
+    uint64_t elapsed = (uint64_t)esp_timer_get_time() - start;
+    uint32_t us = elapsed > UINT32_MAX ? UINT32_MAX : (uint32_t)elapsed;
+    diagnostic_add(&ctx->timing.read_calls, 1);
+    diagnostic_add(&ctx->timing.read_us_total, us);
+    if (!ctx->timing.read_us_min || us < ctx->timing.read_us_min)
+        __atomic_store_n(&ctx->timing.read_us_min, us, __ATOMIC_RELEASE);
+    if (us > ctx->timing.read_us_max)
+        __atomic_store_n(&ctx->timing.read_us_max, us, __ATOMIC_RELEASE);
     if (result == CMQ_IO) return CM_ACQ_READ_IO;
-    if (result != CMQ_OK || !read_window_open(ctx)) return CM_ACQ_READ_FAULT;
+    if (!valid) return CM_ACQ_READ_FAULT;
     *sample = value;
     return CM_ACQ_READ_OK;
 }
@@ -435,4 +456,85 @@ cm_acq_mode cm_acq_idf_current_mode(const cm_acq_idf *ctx)
 cm_acq *cm_acq_idf_core(cm_acq_idf *ctx)
 {
     return ctx ? &ctx->core : NULL;
+}
+
+void cm_acq_idf_timing_snapshot(const cm_acq_idf *ctx, cm_acq_idf_timing *out)
+{
+    if (!ctx || !out) return;
+#define COPY_TIMING(field) out->field = __atomic_load_n(&ctx->timing.field, __ATOMIC_ACQUIRE)
+    COPY_TIMING(pre_low); COPY_TIMING(pre_pending); COPY_TIMING(post_low); COPY_TIMING(post_pending);
+    COPY_TIMING(read_calls); COPY_TIMING(read_us_min); COPY_TIMING(read_us_max); COPY_TIMING(read_us_total);
+#undef COPY_TIMING
+}
+
+esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *ctx, uint32_t out[8])
+{
+    if (!ctx || !out) return ESP_ERR_INVALID_ARG;
+    xSemaphoreTake(ctx->gate, portMAX_DELAY);
+    esp_err_t rc = ESP_ERR_INVALID_STATE;
+    if (load_flag(&ctx->measurement_done) && !cm_acq_measured_rate_millihz(&ctx->core)
+        && load_flag(&ctx->running) && !load_flag(&ctx->publication)) {
+        uint8_t bytes[24];
+        gpio_io_config_t io;
+        uint32_t levels = 0;
+        rc = map_qmi(cmq_diagnostic_snapshot(ctx->device, bytes));
+        if (rc == ESP_OK) {
+            rc = gpio_get_io_config((gpio_num_t)CMQ_INT2_GPIO, &io);
+        }
+        if (rc == ESP_OK) {
+            /* Failure-only bounded polling, never an acquisition substitute.
+             * IRQs remain enabled. USB/higher-priority tasks can preempt us. */
+            uint64_t end = (uint64_t)esp_timer_get_time() + 20000u;
+            do {
+                levels |= gpio_get_level((gpio_num_t)CMQ_INT2_GPIO) ? 2u : 1u;
+            } while ((uint64_t)esp_timer_get_time() < end);
+            rc = map_qmi(cmq_diagnostic_snapshot(ctx->device, bytes + 12));
+        }
+        if (rc == ESP_OK) {
+            for (size_t i = 0; i < 6; ++i)
+                out[i] = ((uint32_t)bytes[4*i] << 24) | ((uint32_t)bytes[4*i+1] << 16)
+                    | ((uint32_t)bytes[4*i+2] << 8) | bytes[4*i+3];
+            out[6] = ((uint32_t)io.fun_sel << 16) | (io.ie ? 1u : 0u)
+                | (io.oe ? 2u : 0u) | (io.pu ? 4u : 0u) | (io.pd ? 8u : 0u);
+            out[7] = levels;
+        }
+    }
+    xSemaphoreGive(ctx->gate);
+    return rc;
+}
+
+esp_err_t cm_acq_idf_pulse_probe(cm_acq_idf *ctx, uint32_t out[6])
+{
+    if (!ctx || !out) return ESP_ERR_INVALID_ARG;
+    xSemaphoreTake(ctx->gate, portMAX_DELAY);
+    if (!load_flag(&ctx->measurement_done) || !load_flag(&ctx->running) || load_flag(&ctx->publication)) {
+        xSemaphoreGive(ctx->gate);return ESP_ERR_INVALID_STATE;
+    }
+    uint32_t v[6] = {UINT32_MAX, 0, UINT32_MAX, 0, 0, 0};
+    uint64_t start = (uint64_t)esp_timer_get_time(), rise = 0;
+    bool high = gpio_get_level((gpio_num_t)CMQ_INT2_GPIO) != 0;
+    uint64_t now;
+    do {
+        now = (uint64_t)esp_timer_get_time();
+        bool next = gpio_get_level((gpio_num_t)CMQ_INT2_GPIO) != 0;
+        if (next && !high) {
+            if (rise) {
+                uint32_t period = (uint32_t)(now - rise);
+                if (period < v[2]) v[2] = period;
+                if (period > v[3]) v[3] = period;
+            }
+            rise = now;++v[5];
+        } else if (!next && high && rise) {
+            uint32_t width = (uint32_t)(now - rise);
+            if (width < v[0]) v[0] = width;
+            if (width > v[1]) v[1] = width;
+            ++v[4];
+        }
+        high = next;
+    } while (now - start < 20000u);
+    if (!v[4]) v[0] = 0;
+    if (v[5] < 2) v[2] = 0;
+    memcpy(out, v, sizeof(v));
+    xSemaphoreGive(ctx->gate);
+    return ESP_OK;
 }

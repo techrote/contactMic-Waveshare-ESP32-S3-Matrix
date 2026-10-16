@@ -1,6 +1,6 @@
 # Source authority
 
-Last reviewed: 2026-10-10.
+Last reviewed: 2026-10-10. USB source extension reviewed for CM-009: 2026-10-15.
 
 Use primary sources for hardware and platform facts. Repository contracts may deliberately select a subset or policy within vendor-supported behavior; where that happens, the repository contract governs implementation until explicitly revised.
 
@@ -23,6 +23,7 @@ Verified board facts used by this repository:
   - INT1 -> GPIO10
   - INT2 -> GPIO13
 - The onboard sensor is wired for I2C use; implementation must not assume an accessible high-speed SPI path.
+- Native USB data nets reach GPIO19/D- and GPIO20/D+; CM-009 uses the stock connector.
 
 ## QST QMI8658C
 
@@ -43,6 +44,14 @@ Verified facts relevant to this project:
 
 Consequent repository policy: do not market or hard-code a literal 8,000 Hz source rate. Measure actual DRDY rate and report it in the stream/session metadata.
 
+CM-009 interrupt-gate conflict evidence (2026-10-16): Waveshare's QMI8658C driver
+defines CTRL1 INT2_ENABLE=0x10, conflicting with QST Rev-A's reserved-bit table.
+Pinned board-vendor references (different board; register evidence only):
+- https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.41-V2/blob/0eaf16cfae3440d445f2b6caa71e94065094551f/02_Example/Arduino/03_I2C_QMI8658/qmi8658c.h
+- https://github.com/waveshareteam/ESP32-S3-Touch-AMOLED-2.41-V2/blob/0eaf16cfae3440d445f2b6caa71e94065094551f/02_Example/ESP-IDF/10_FactoryProgram/components/qmi8658c/qmi8658c.c
+The bounded provisional exception is in `02-HARDWARE-CONTRACT.md` and issue #16
+comment 6213746553. The actual Matrix demo polls and does not prove DRDY gating.
+
 ## Espressif ESP32-S3 / ESP-IDF
 
 - ESP32-S3 BLE overview:
@@ -60,6 +69,24 @@ Platform facts:
 - This project therefore uses ESP-NimBLE and a custom GATT transport.
 - Initial toolchain pin: ESP-IDF v5.5.5. A toolchain upgrade requires an explicit repository change and full CI.
 
+## CM-009 USB stack and host authority
+
+- Exact TinyUSB 0.18.0 source pin:
+  https://github.com/hathach/tinyusb/tree/86ad6e56c1700e85f1c5678607a762cfe3aa2f47
+- Pinned IDF USB PHY API (software-controlled OTG/internal-PHY device setup):
+  https://github.com/espressif/esp-idf/blob/v5.5.5/components/usb/include/esp_private/usb_phy.h
+- Microsoft native USB Audio 2.0 driver and supported endpoint/clock controls:
+  https://learn.microsoft.com/en-us/windows-hardware/drivers/audio/usb-2-0-audio-drivers
+- Espressif UAC wrapper considered as a reference, not installed as a second stack:
+  https://github.com/espressif/esp-iot-solution/tree/master/components/usb/usb_device_uac
+
+CM-009 chooses one UAC2 capture-only synchronous full-speed function plus CDC in a
+single TinyUSB instance. Its exact dependency/source lock is
+`firmware-usb/components/contactmic_usb/dependencies.lock.cmake`. This is not a
+claim of physical Windows enumeration or USB compliance. Development VID/PID,
+endpoint bytes, clock reconciliation and physical recovery are specified in
+`docs/CM-009-USB-AUDIO-CONTRACT.md`. No eFuse changes or external PHY are required.
+
 ## Host libraries
 
 Reference implementations may use:
@@ -67,8 +94,9 @@ Reference implementations may use:
 - Bleak: https://bleak.readthedocs.io/
 - NumPy: https://numpy.org/doc/
 - python-sounddevice: https://python-sounddevice.readthedocs.io/
+- pySerial for optional USB CDC qualification: https://pyserial.readthedocs.io/
 
-The host architecture must keep packet parsing and DSP testable without a Bluetooth adapter or audio device.
+The host architecture must keep packet parsing and DSP testable without a Bluetooth adapter or audio device. The separate USB qualification extra must not require Bleak or a Bluetooth adapter.
 
 ## Source update policy
 
