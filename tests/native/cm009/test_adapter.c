@@ -10,6 +10,8 @@ static bool frontend,cdc_open=true,usb_mounted=true;
 static uint32_t cdc_room=64;
 static unsigned backend_calls,usb_init_calls,phy_calls,task_calls;
 static uint64_t clock_us;
+static esp_err_t configure_error, prepare_error;
+static uint32_t measured_rate = 1000000;
 static char input[2048],captured[8192];
 static size_t input_at,input_length,captured_length;
 static uint8_t last_audio[96];
@@ -20,13 +22,13 @@ cmq_result cmq_reset(cmq_device *d) {io_guard();d->state=CMQ_IDLE;return CMQ_OK;
 esp_err_t cm_acq_idf_create(cmq_device *d,cm_acq_idf **out)
 {CHECK(d);*out=&acq;return ESP_OK;}
 esp_err_t cm_acq_idf_configure(cm_acq_idf *a,cm_acq_policy policy,cmq_axis axis,uint8_t range,cm_acq_mode ceiling)
-{io_guard();CHECK(a==&acq&&policy<=CM_ACQ_POLICY_HIGH&&axis<=CMQ_Z&&(range==2||range==4)&&ceiling==CM_ACQ_MODE_SAFE);return ESP_OK;}
-esp_err_t cm_acq_idf_prepare(cm_acq_idf *a) {io_guard();a->ready=true;return ESP_OK;}
+{io_guard();CHECK(a==&acq&&policy<=CM_ACQ_POLICY_HIGH&&axis<=CMQ_Z&&(range==2||range==4)&&ceiling==CM_ACQ_MODE_SAFE);return configure_error;}
+esp_err_t cm_acq_idf_prepare(cm_acq_idf *a) {io_guard();a->ready=true;return prepare_error;}
 esp_err_t cm_acq_idf_publish(cm_acq_idf *a) {io_guard();a->core.head=a->core.tail=a->core.next=0;a->live=true;return ESP_OK;}
 esp_err_t cm_acq_idf_stop(cm_acq_idf *a) {io_guard();a->live=a->ready=false;a->core.head=a->core.tail=0;return ESP_OK;}
 bool cm_acq_idf_measurement_ready(const cm_acq_idf *a){return a->ready;}
 bool cm_acq_idf_publishing(const cm_acq_idf *a){return a->live;}
-uint32_t cm_acq_idf_measured_rate_millihz(const cm_acq_idf *a){(void)a;return 1000000;}
+uint32_t cm_acq_idf_measured_rate_millihz(const cm_acq_idf *a){(void)a;return measured_rate;}
 cm_acq *cm_acq_idf_core(cm_acq_idf *a){return &a->core;}
 size_t cm_acq_count(const cm_acq *a){return a->head-a->tail;}
 bool cm_acq_peek(const cm_acq *a,size_t n,cm_acq_sample *out)
@@ -126,5 +128,19 @@ int main(void)
     CHECK(backend_calls==calls); /* All the above callbacks remained nonblocking. */
     frontend=false;cmu_worker_step(&runtime.core,300000);
     CHECK(!acq.live);
+    /* Distinguish real configure/start failures from zero-edge measurement,
+     * retaining the last failure across successful cleanup/status queries. */
+    configure_error=ESP_FAIL;
+    CHECK(source_begin(NULL,&runtime.core.config,0)==CMU_IO);
+    CHECK(runtime.backend_failure==((2u<<16)|0xffffu));
+    configure_error=ESP_OK;prepare_error=ESP_FAIL;
+    CHECK(source_begin(NULL,&runtime.core.config,0)==CMU_IO);
+    CHECK(runtime.backend_failure==((3u<<16)|0xffffu));
+    prepare_error=ESP_OK;CHECK(source_begin(NULL,&runtime.core.config,0)==CMU_OK);
+    measured_rate=0;uint32_t rate;
+    CHECK(source_ready(NULL,&rate)==CMU_IO);
+    CHECK(runtime.backend_failure==((4u<<16)|0xffffu));
+    CHECK(source_stop(NULL)==CMU_OK);
+    CHECK(runtime.backend_failure==((4u<<16)|0xffffu));
     puts("CM-009 real USB adapter callback/CDC isolation tests passed");return 0;
 }

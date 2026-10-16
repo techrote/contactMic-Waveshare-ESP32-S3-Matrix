@@ -27,7 +27,7 @@ static struct {
     cmq_device *device;
     usb_phy_handle_t phy;
     bool claimed, source_ready, stream_open, reconnect_pending, mounted;
-    uint32_t bus_epoch, observed_epoch, boot_id;
+    uint32_t bus_epoch, observed_epoch, boot_id, backend_failure;
     uint64_t reconnect_at;
     char serial[13], product[24], elf_hash[65];
     char rx[CMU_CONTROL_BYTES], tx[3072];
@@ -38,18 +38,28 @@ static struct {
 static uint64_t now_us(void) { return (uint64_t)esp_timer_get_time(); }
 static void increment(uint64_t *p) { if (*p != UINT64_MAX) ++*p; }
 static cmu_result result(esp_err_t r) { return r == ESP_OK ? CMU_OK : CMU_IO; }
+/* Controller writes one atomic diagnostic word; USB never reads live driver
+ * internals or performs I2C to explain a failed preparation. Retain last failure. */
+static cmu_result backend_result(esp_err_t rc, uint32_t stage)
+{
+    if (rc != ESP_OK)
+        __atomic_store_n(&runtime.backend_failure,
+            (stage << 16) | ((uint32_t)rc & 0xffffu), __ATOMIC_RELEASE);
+    return result(rc);
+}
 static cmu_result source_begin(void *p, const cmu_config *config, uint32_t mode)
 {
     (void)p;
     if (!runtime.source_ready || !runtime.acquisition || mode > CMU_HIGH) return CMU_IO;
-    if (runtime.device->state == CMQ_FAULT && cmq_reset(runtime.device) != CMQ_OK) return CMU_IO;
+    if (runtime.device->state == CMQ_FAULT && cmq_reset(runtime.device) != CMQ_OK)
+        return backend_result(ESP_FAIL, 1);
     const cm_acq_policy policies[] = {CM_ACQ_POLICY_SAFE, CM_ACQ_POLICY_MEDIUM, CM_ACQ_POLICY_HIGH};
     const cmq_axis axes[] = {CMQ_X, CMQ_Y, CMQ_Z};
     if (!cmu_config_valid(config)) return CMU_INVALID;
     esp_err_t rc = cm_acq_idf_configure(runtime.acquisition, policies[mode],
         axes[config->axis], (uint8_t)config->range_g, CM_ACQ_MODE_SAFE);
-    if (rc == ESP_OK) rc = cm_acq_idf_prepare(runtime.acquisition);
-    return result(rc);
+    if (rc != ESP_OK) return backend_result(rc, 2);
+    return backend_result(cm_acq_idf_prepare(runtime.acquisition), 3);
 }
 static cmu_result source_ready(void *p, uint32_t *rate)
 {
@@ -57,14 +67,14 @@ static cmu_result source_ready(void *p, uint32_t *rate)
     if (!runtime.acquisition) return CMU_IO;
     if (!cm_acq_idf_measurement_ready(runtime.acquisition)) return CMU_BUSY;
     *rate = cm_acq_idf_measured_rate_millihz(runtime.acquisition);
-    return *rate ? CMU_OK : CMU_IO;
+    return *rate ? CMU_OK : backend_result(ESP_FAIL, 4);
 }
 static cmu_result source_publish(void *p)
-{ (void)p; return runtime.acquisition ? result(cm_acq_idf_publish(runtime.acquisition)) : CMU_IO; }
+{ (void)p; return runtime.acquisition ? backend_result(cm_acq_idf_publish(runtime.acquisition), 6) : CMU_IO; }
 static bool source_published(void *p)
 { (void)p; return runtime.acquisition && cm_acq_idf_publishing(runtime.acquisition); }
 static cmu_result source_stop(void *p)
-{ (void)p; return runtime.acquisition ? result(cm_acq_idf_stop(runtime.acquisition)) : CMU_OK; }
+{ (void)p; return runtime.acquisition ? backend_result(cm_acq_idf_stop(runtime.acquisition), 5) : CMU_OK; }
 static bool source_peek(void *p, size_t n, cmu_sample *out)
 {
     (void)p;
@@ -204,7 +214,7 @@ static void format_reply(uint32_t id, cmu_result r)
         "{\"schema\":\"cm009.v1\",\"request_id\":%" PRIu32 ",\"result\":%u,"
         "\"serial\":\"%s\",\"boot_id\":%" PRIu32 ",\"reset_reason\":%u,"
         "\"firmware\":\"%s\",\"elf_sha256\":\"%s\",\"source_available\":%s,\"qmi\":%s,"
-        "\"generation\":%" PRIu32 ",\"state\":%" PRIu32 ",\"reason\":%" PRIu32 ","
+        "\"generation\":%" PRIu32 ",\"state\":%" PRIu32 ",\"reason\":%" PRIu32 ",\"backend_failure\":%" PRIu32 ","
         "\"source_rate_millihz\":%" PRIu32 ",\"mode\":%" PRIu32 ",\"uac_rate\":48000,"
         "\"axis\":%" PRIu32 ",\"range_g\":%" PRIu32 ",\"policy\":%" PRIu32 ","
         "\"gain_milli\":%" PRIu32 ",\"cutoff_millihz\":%" PRIu32 ",\"led_policy\":\"untouched\","
@@ -222,7 +232,7 @@ static void format_reply(uint32_t id, cmu_result r)
         "\"rejected_controls\":%" PRIu64 ",\"cdc_overflows\":%" PRIu64 ",\"cdc_dropped_replies\":%" PRIu64 "}}\n",
         id, (unsigned)r, runtime.serial, runtime.boot_id, (unsigned)esp_reset_reason(),
         CMU_SOURCE_REVISION, runtime.elf_hash, runtime.source_ready ? "true" : "false", qmi,
-        c->generation, c->state, c->reason, c->rate, c->mode,
+        c->generation, c->state, c->reason, __atomic_load_n(&runtime.backend_failure, __ATOMIC_ACQUIRE), c->rate, c->mode,
         c->config.axis, c->config.range_g, c->config.policy, c->config.gain_milli, c->config.cutoff_millihz,
         c->source_snapshot_fresh ? "true" : "false", now_us(), c->generation_output_samples, (unsigned)source_count(NULL), c->queue_high,
         c->queue_low == UINT32_MAX ? 0 : c->queue_low, c->correction_ppm,

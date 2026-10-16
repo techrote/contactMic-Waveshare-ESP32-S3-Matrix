@@ -129,3 +129,53 @@ correction. No hash check or acceptance threshold was weakened.
 The operator then confirmed recording applications closed and a fresh BOOT/RESET
 recovery for flashing the corrected firmware. The first firmware image, binary
 identities and failed reply remain preserved.
+
+## First ordinary native recording and failed preflight
+
+Clean head `532cfe85954db64fc2961e005353c0162ef4795c` was flashed and queried.
+Runtime full ELF hash matches saved build `binary-005/`:
+`2f547c6d91d97753a16cb870ad4e4cf8eac364d043d95f54c618da73b38754b7`.
+Application binary SHA-256:
+`bac02e9eaaccf232b87976d2584ca2781555d58d708a9d9d4d56635d1106d573`.
+Exact-head CI `38879786487` passed all eight jobs. Operator confirmed normal
+RESET, matrix off and no unusual heat/smell/USB warnings.
+
+The operator placed the board in contact with the subwoofer body and confirmed
+secure nonconductive insulation, strain relief and absence of movement/chuffing/
+distortion/heat. They authorized recording the microphone and PC playback. Existing
+music at the user's unchanged level is relative excitation only. Cabinet contact
+is the recorded fixture; no port/airflow or calibrated acceleration claim is made.
+
+FFmpeg 9.0.2 (Gyan release essentials, linked from FFmpeg's download page; archive
+checked against its published SHA-256) recorded the exact DirectShow microphone
+name, with CDC closed and no repository receiver. It negotiated native 48 kHz mono
+PCM16. The saved WAV has 575,712 frames; after excluding the first two seconds,
+its RMS is only 0.479 PCM counts and peak one count. **This is not meaningful
+contact pickup or a successful ordinary-microphone acceptance.** Post-recording
+CDC retained boot ID `2181138798` but reported zero source intervals/reads and
+599,232 failed-silence output samples, with no short writes or host dshow buffer
+failure reported. Software USB output does not establish working acquisition.
+
+Raw ordinary recording: `build/cm009/ordinary-music-001/native-microphone.wav`,
+SHA-256 `17ffca780a8605d70c7d61f5c8dc429996f514eae2ec3eeebfa8c4fe1343a0f5`.
+The directory also retains recorder/version/driver selection logs, statistics
+and post-recording CDC bytes/status. A separate eight-second speaker-loopback
+recording confirmed active PC output (peak 0.502, RMS 0.153 of digital full scale,
+no API warning). It was not simultaneous with the first microphone recording;
+it is not a timing, acoustic-level or acceleration reference.
+
+`build/cm009/preflight-001/` then failed after about one second, with the failed
+startup observation preserved. State PREPARING became FAILED / BACKEND; actual
+source intervals and reads remained zero. The requested ten-second evaluated
+window never began, so the miss fraction has no valid denominator. Host overflow,
+queue drops and bad-block counts were zero in this short attempt; those facts do
+not turn it into a pass. Evidence manifest SHA-256:
+`26590ef0ad462f3f0189ccf955e91b4ce0f8c83996eba14285736b13b2e410a6`.
+No sustained high/medium capture was attempted on this failed chain.
+
+The next scoped diagnostic adds an atomic retained backend-failure stage/error
+to distinguish configure/start failures from a completed zero-edge measurement.
+It adds no I2C to USB callbacks and does not change driver registers or thresholds.
+The native adapter tests cover failure stages and retention across cleanup; all
+13 native tests and the pinned USB build pass. The operator confirmed recovery
+for this diagnostic build. Further physical results remain pending.

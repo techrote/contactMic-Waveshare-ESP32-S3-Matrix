@@ -185,6 +185,12 @@ CONFIG fields are request ID, axis (0=X,1=Y,2=Z), range (2 or 4 g), policy
 milli-Hz (0..100000). Configuration is atomic at the frontend and rejected while
 an OS capture is open. There is no implicit lifetime-counter reset. The complete
 status/identity can be queried after opening CDC even when boot text was missed.
+`backend_failure` retains the controller's last failed operation as
+`(stage << 16) | (error & 0xffff)`: stages 1=driver reset, 2=configure,
+3=start/preparation, 4=completed zero-rate measurement, 5=stop, 6=publication.
+Zero means none observed; the low word is the ESP-IDF error code (0xffff for
+ESP_FAIL). Successful cleanup does not erase the failure. This atomic diagnostic
+does not cause sensor I/O or waits on the USB owner.
 
 Replies use `cm009.v1`, correlate `request_id`, and include stable serial, boot ID,
 reset reason, firmware/ELF identities, QMI identity, generation/state/reason, mode,
