@@ -304,3 +304,17 @@ revision 0x7C Matrix. It does not qualify rate, contact fidelity or BLE behavior
 The next diagnostic separates pre-read low/pending from post-read low/pending
 and records read duration, without relaxing either validity check. Native tests
 cover the classifications; all 13 pass. Seven CM-006 tests passed on 79b14cb.
+
+Read-timing diagnostic head `0293dd17065d4efe1ed177c8e7713db517ef4fef` was flashed,
+runtime ELF `9cffabbd94686d497c9d9be15d1a10f58efa678a6c7c2d49d33784594a5c98c9`.
+`preflight-timing-safe-012/` recorded 1,980/9,170 misses (21.5921%) in its valid
+ten-second comparison window. All observed failed checks were post-read low;
+there were no pre-read low/pending or post-read pending checks. Lifetime timing
+at the final snapshot: 9,832 read calls, min 291 us, max 742 us, total 3,651,329 us.
+Source I2C errors/ring overruns and host overflows/drops/bad blocks remained zero.
+The larger observed miss fraction is retained, not dismissed as instrumentation.
+
+Effective USB sdkconfig used IDF debug optimization (`-Og`). The next comparison
+selects IDF performance optimization in the USB defaults, with unchanged pinned
+toolchain, acquisition checks, sensor modes and maximum 400 kHz I2C clock.
+Its effect on actual timing and loss must be measured before any acceptance.
