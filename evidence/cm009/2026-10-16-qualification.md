@@ -236,3 +236,19 @@ observes levels for a bounded 20 ms with interrupts enabled after the failed
 measurement. It never drives the pin or substitutes polling for acquisition.
 All 13 native tests pass, including the encoded input configuration and bounded
 probe behavior. Seven CM-006 integration tests also passed on c4f8065.
+
+Exact c4f8065 CI run `38887753114` completed with all eight jobs successful,
+including retained BLE and USB firmware builds. GPIO-input diagnostic head
+`717dce80b0cb7d0094e3e6c5c0289c84e756865d` was subsequently built clean and
+flashed after ROM MAC verification. `preflight-pin-config-008/` failed startup
+on boot `3067943989`, runtime ELF
+`f8b993ef01079b59fec56d31c493ba6e79a6005f4baa5d46dc1f66f2e8bba083`.
+Probe words `40030303 00000003 48019F3F 40030303 00000003 5C012D3F
+00010001 00000001` show changing sensor bytes, GPIO mux function 1, input enabled,
+output/pulls disabled, and low only during the bounded observation. Source
+intervals remained zero. Pin signal integrity remains unmeasured electrically.
+
+Because MCU resets/flash did not remove sensor power, a controlled board-only
+USB unplug/replug has been requested to test retained peripheral/pad state.
+This diagnostic cycle is not a passing audio lifecycle cycle. Required accepted
+capture and lifecycle counts remain unfulfilled.
