@@ -40,6 +40,8 @@ typedef struct {int controller,target,otg_mode,otg_speed;} usb_phy_config_t;
 esp_err_t usb_new_phy(const usb_phy_config_t *,usb_phy_handle_t *);
 esp_err_t esp_efuse_mac_get_default(uint8_t *);
 int esp_app_get_elf_sha256(char *,size_t);
+typedef struct {uint8_t app_elf_sha256[32];} esp_app_desc_t;
+const esp_app_desc_t *esp_app_get_description(void);
 uint32_t esp_random(void);
 int esp_reset_reason(void);
 int64_t esp_timer_get_time(void);

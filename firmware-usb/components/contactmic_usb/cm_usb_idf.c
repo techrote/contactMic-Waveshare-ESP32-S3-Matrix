@@ -305,7 +305,11 @@ esp_err_t cmu_idf_start(cmq_device *device, bool usable)
     (void)snprintf(runtime.serial, sizeof(runtime.serial), "%02X%02X%02X%02X%02X%02X",
         mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     (void)snprintf(runtime.product, sizeof(runtime.product), "CM USB %s", runtime.serial);
-    (void)esp_app_get_elf_sha256(runtime.elf_hash, sizeof(runtime.elf_hash));
+    /* The string helper truncates to CONFIG_APP_RETRIEVE_LEN_ELF_SHA (default 9).
+     * Build provenance requires all 32 bytes from the linked image descriptor. */
+    const esp_app_desc_t *app = esp_app_get_description();
+    for (size_t i = 0; i < sizeof(app->app_elf_sha256); ++i)
+        (void)snprintf(runtime.elf_hash + 2u*i, 3, "%02x", app->app_elf_sha256[i]);
     runtime.boot_id = esp_random();
     if (usable && cm_acq_idf_create(device, &runtime.acquisition) != ESP_OK) runtime.source_ready = false;
     const cmu_backend backend = {NULL, source_begin, source_ready, source_publish,

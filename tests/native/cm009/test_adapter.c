@@ -36,7 +36,10 @@ bool cm_acq_try_snapshot(const cm_acq *a,cm_acq_counters *out){*out=a->counters;
 esp_err_t usb_new_phy(const usb_phy_config_t *p,usb_phy_handle_t *out)
 {CHECK(p->controller==USB_PHY_CTRL_OTG&&p->target==USB_PHY_TARGET_INT&&p->otg_mode==USB_OTG_MODE_DEVICE&&p->otg_speed==USB_PHY_SPEED_FULL);++phy_calls;*out=&acq;return ESP_OK;}
 esp_err_t esp_efuse_mac_get_default(uint8_t *m){memset(m,0xAB,6);return ESP_OK;}
-int esp_app_get_elf_sha256(char *out,size_t n){CHECK(n>=65);memset(out,'a',64);out[64]=0;return 65;}
+/* IDF's helper is capped by CONFIG_APP_RETRIEVE_LEN_ELF_SHA (default nine). */
+int esp_app_get_elf_sha256(char *out,size_t n){CHECK(n>=10);memset(out,'a',9);out[9]=0;return 10;}
+const esp_app_desc_t *esp_app_get_description(void)
+{static esp_app_desc_t app;for(unsigned i=0;i<32;i++)app.app_elf_sha256[i]=(uint8_t)i;return &app;}
 uint32_t esp_random(void){return 42;}
 int esp_reset_reason(void){return 1;}
 int64_t esp_timer_get_time(void){return (int64_t)clock_us;}
@@ -70,6 +73,8 @@ int main(void)
     CHECK(phy_calls==1&&usb_init_calls==1&&task_calls==2);
     CHECK(cmu_idf_start(&d,true)==ESP_ERR_INVALID_STATE);
     CHECK(!strcmp(runtime.serial,"ABABABABABAB"));
+    CHECK(strlen(runtime.elf_hash)==64);
+    CHECK(!strcmp(runtime.elf_hash,"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"));
     CHECK(tud_descriptor_string_cb(3,0x0409)[0]==0x031a);
     CHECK(!tud_descriptor_string_cb(9,0x0409));
     tud_mount_cb();

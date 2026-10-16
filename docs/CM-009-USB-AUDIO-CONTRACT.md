@@ -60,6 +60,9 @@ product under this identity without arranging a legitimate VID/PID policy. The
 USB serial is the 12-digit uppercase factory MAC identity (read only, no eFuse
 writes); the product/interface name `CM USB <serial>` binds host audio selection
 to the same CDC serial. Firmware Git and ELF SHA-256 identity are queryable.
+The adapter encodes all 32 ELF-hash bytes from `esp_app_get_description()`;
+IDF's string helper is limited by `APP_RETRIEVE_LEN_ELF_SHA` (nine characters by
+default) and is insufficient for the qualification identity.
 
 ## USB PHY, build and recovery
 

@@ -102,3 +102,30 @@ No sustained capture has started. Physical preflight, ordinary Windows recorder,
 high/medium matched windows, lifecycle/CDC/source-failure checks, LED observation,
 six axis/range comparisons, contact examples and defaults remain outstanding.
 Electrical/bus measurements and acceleration calibration are unavailable, not zero.
+
+## Subsequent operator reset and first native enumeration
+
+The operator confirmed a normal RESET with BOOT released, LEDs off, and no unusual
+heat/smell/USB warning. Windows then enumerated `CM USB F0F5BD7584BC` as the UAC2
+microphone and application CDC COM11, development VID:PID `CAFE:4014`. Microsoft's
+signed `usbaudio2.sys` / `usbaudio2.inf` version `10.0.26100.9457` and `usbser.inf`
+version `10.0.26100.9278` bind those functions. This is real native enumeration;
+ordinary application recording and source performance are still unqualified.
+
+The first CDC query returned QMI address `0x6B`, WHO_AM_I `0x05`, revision `0x7C`,
+source available and stopped. Its firmware identity matched `37f6bff`, but ELF
+identity was only `6960c2631`. The runner correctly refused the truncated hash.
+Raw reply bytes are preserved in `first-binary-control.jsonl` and
+`first-binary-reply.json`; no passing capture was produced.
+
+Root cause: pinned IDF's `esp_app_get_elf_sha256()` copies at most the configured
+string length, default nine characters, even with a 65-byte caller buffer. The
+old native fake incorrectly promised all 64. A fake modeling the actual default
+first failed the 64-character regression. The adapter now converts all 32 raw
+bytes from the linked app descriptor, and the regression checks the complete
+known byte sequence. All 13 native tests and the actual USB build pass after this
+correction. No hash check or acceptance threshold was weakened.
+
+The operator then confirmed recording applications closed and a fresh BOOT/RESET
+recovery for flashing the corrected firmware. The first firmware image, binary
+identities and failed reply remain preserved.
