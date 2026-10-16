@@ -35,7 +35,14 @@ struct cm_acq_idf {
     bool configured;
     bool isr_added;
     bool owns_isr_service;
+    cm_acq_idf_timing timing;
 };
+
+static void diagnostic_add(uint32_t *p, uint32_t n)
+{
+    uint32_t v = __atomic_load_n(p, __ATOMIC_RELAXED);
+    __atomic_store_n(p, UINT32_MAX - v < n ? UINT32_MAX : v + n, __ATOMIC_RELEASE);
+}
 
 static uint32_t load_flag(const uint32_t *flag)
 {
@@ -75,13 +82,17 @@ static cmq_mode qmi_mode(cm_acq_mode mode)
     }
 }
 
-static bool read_window_open(cm_acq_idf *ctx)
+static bool read_window_open(cm_acq_idf *ctx, bool after)
 {
     portENTER_CRITICAL(&ctx->pending_lock);
-    bool valid = ctx->pending_edges == 0 &&
-                 gpio_get_level((gpio_num_t)CMQ_INT2_GPIO) != 0;
+    bool pending = ctx->pending_edges != 0;
+    bool high = gpio_get_level((gpio_num_t)CMQ_INT2_GPIO) != 0;
     portEXIT_CRITICAL(&ctx->pending_lock);
-    return valid;
+    /* Mutually exclusive per-check diagnostics; source_faults is still the
+     * single failed-read count. Never add these as independent source losses. */
+    if (pending) diagnostic_add(after ? &ctx->timing.post_pending : &ctx->timing.pre_pending, 1);
+    else if (!high) diagnostic_add(after ? &ctx->timing.post_low : &ctx->timing.pre_low, 1);
+    return !pending && high;
 }
 
 static cm_acq_read_result read_selected(void *opaque, int16_t *sample)
@@ -90,11 +101,21 @@ static cm_acq_read_result read_selected(void *opaque, int16_t *sample)
     /* CM-002 requires the DRDY-high window. Never publish an I2C-success value
      * after an observed intervening edge/update. Physical interrupt latency and
      * bus-window feasibility still require CM-007 measurement. */
-    if (!read_window_open(ctx)) return CM_ACQ_READ_FAULT;
+    if (!read_window_open(ctx, false)) return CM_ACQ_READ_FAULT;
     int16_t value;
+    uint64_t start = (uint64_t)esp_timer_get_time();
     cmq_result result = cmq_read_selected(ctx->device, &value);
+    bool valid = result == CMQ_OK && read_window_open(ctx, true);
+    uint64_t elapsed = (uint64_t)esp_timer_get_time() - start;
+    uint32_t us = elapsed > UINT32_MAX ? UINT32_MAX : (uint32_t)elapsed;
+    diagnostic_add(&ctx->timing.read_calls, 1);
+    diagnostic_add(&ctx->timing.read_us_total, us);
+    if (!ctx->timing.read_us_min || us < ctx->timing.read_us_min)
+        __atomic_store_n(&ctx->timing.read_us_min, us, __ATOMIC_RELEASE);
+    if (us > ctx->timing.read_us_max)
+        __atomic_store_n(&ctx->timing.read_us_max, us, __ATOMIC_RELEASE);
     if (result == CMQ_IO) return CM_ACQ_READ_IO;
-    if (result != CMQ_OK || !read_window_open(ctx)) return CM_ACQ_READ_FAULT;
+    if (!valid) return CM_ACQ_READ_FAULT;
     *sample = value;
     return CM_ACQ_READ_OK;
 }
@@ -435,6 +456,15 @@ cm_acq_mode cm_acq_idf_current_mode(const cm_acq_idf *ctx)
 cm_acq *cm_acq_idf_core(cm_acq_idf *ctx)
 {
     return ctx ? &ctx->core : NULL;
+}
+
+void cm_acq_idf_timing_snapshot(const cm_acq_idf *ctx, cm_acq_idf_timing *out)
+{
+    if (!ctx || !out) return;
+#define COPY_TIMING(field) out->field = __atomic_load_n(&ctx->timing.field, __ATOMIC_ACQUIRE)
+    COPY_TIMING(pre_low); COPY_TIMING(pre_pending); COPY_TIMING(post_low); COPY_TIMING(post_pending);
+    COPY_TIMING(read_calls); COPY_TIMING(read_us_min); COPY_TIMING(read_us_max); COPY_TIMING(read_us_total);
+#undef COPY_TIMING
 }
 
 esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *ctx, uint32_t out[8])

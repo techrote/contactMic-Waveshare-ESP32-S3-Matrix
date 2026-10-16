@@ -96,6 +96,8 @@ int main(void)
     CHECK(cm_acq_idf_zero_rate_probe(a,words)==ESP_OK && probes==2);
     CHECK(words[0]==0x01010101 && words[5]==0x02020202);
     CHECK(words[6]==0x10001 && words[7]==2);
+    cm_acq_idf_timing timing;cm_acq_idf_timing_snapshot(a,&timing);
+    CHECK(timing.pre_low==1 && timing.post_pending==1 && timing.read_calls>=300);
     cm_acq_idf_destroy(a);
     CHECK(cm_test_critical==0);
     puts("CM-006 production IDF adapter scheduler tests passed");return 0;

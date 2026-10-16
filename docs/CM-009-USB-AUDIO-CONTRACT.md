@@ -213,6 +213,14 @@ Word 6 records GPIO13 mux function in bits 31:16 and input/output/pull-up/pull-d
 enable in bits 0/1/2/3. Word 7 is the low/high level mask observed during bounded
 failure-only polling with interrupts enabled. This is neither a pulse count nor
 an electrical compliance observation.
+`acquisition_timing` is a per-field atomic lifetime diagnostic, not a coherent
+source-counter snapshot. Pre/post low and pending counters classify rejected
+read-window checks (pending takes precedence if both apply). Do not add these
+to source misses as additional losses. `read_calls` and microsecond min/max/total
+measure the driver call plus the immediate post-read window check; values saturate
+at UINT32_MAX. Diagnostic bookkeeping occurs after the validity check and never
+performs I2C on USB. This instrumentation can affect timing and requires physical
+requalification after consequential changes.
 
 Replies use `cm009.v1`, correlate `request_id`, and include stable serial, boot ID,
 reset reason, firmware/ELF identities, QMI identity, generation/state/reason, mode,

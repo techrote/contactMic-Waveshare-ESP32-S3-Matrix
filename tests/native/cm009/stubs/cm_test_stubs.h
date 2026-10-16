@@ -22,6 +22,8 @@ typedef struct {uint32_t index; int16_t value;} cm_acq_sample;
 typedef struct {uint64_t drdy_edges,successful_reads,inferred_missed_intervals,i2c_failures,source_faults,ring_overruns;} cm_acq_counters;
 typedef struct {cm_acq_sample samples[256]; uint32_t head,tail,next; cm_acq_counters counters;} cm_acq;
 typedef struct {cm_acq core; bool ready,live;} cm_acq_idf;
+typedef struct {uint32_t pre_low,pre_pending,post_low,post_pending,read_calls,read_us_min,read_us_max,read_us_total;} cm_acq_idf_timing;
+void cm_acq_idf_timing_snapshot(const cm_acq_idf *,cm_acq_idf_timing *);
 esp_err_t cm_acq_idf_create(cmq_device *,cm_acq_idf **);
 esp_err_t cm_acq_idf_configure(cm_acq_idf *,cm_acq_policy,cmq_axis,uint8_t,cm_acq_mode);
 esp_err_t cm_acq_idf_prepare(cm_acq_idf *);

@@ -10,6 +10,13 @@ extern "C" {
 #endif
 
 typedef struct cm_acq_idf cm_acq_idf;
+typedef struct {
+    uint32_t pre_low, pre_pending, post_low, post_pending;
+    uint32_t read_calls, read_us_min, read_us_max, read_us_total;
+} cm_acq_idf_timing;
+/* Nonblocking per-field atomic lifetime diagnostic snapshot, not a coherent
+ * source-counter window. Saturates at UINT32_MAX; no transport calls or I2C. */
+void cm_acq_idf_timing_snapshot(const cm_acq_idf *, cm_acq_idf_timing *);
 
 /*
  * The adapter owns GPIO13 interrupt handling and the high-priority acquisition

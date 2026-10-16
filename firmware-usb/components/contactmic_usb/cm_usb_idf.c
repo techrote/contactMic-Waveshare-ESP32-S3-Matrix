@@ -218,6 +218,8 @@ bool tud_audio_get_req_entity_cb(uint8_t rhport, tusb_control_request_t const *r
 
 static void format_reply(uint32_t id, cmu_result r)
 {
+    cm_acq_idf_timing timing = {0};
+    if (runtime.acquisition) cm_acq_idf_timing_snapshot(runtime.acquisition, &timing);
     if (runtime.tx_sent != runtime.tx_used) { increment(&runtime.core.counters.cdc_dropped_replies); return; }
     cmu_core *c = &runtime.core;
     cmu_snapshot_source(c);
@@ -234,6 +236,8 @@ static void format_reply(uint32_t id, cmu_result r)
         "\"firmware\":\"%s\",\"elf_sha256\":\"%s\",\"source_available\":%s,\"qmi\":%s,"
         "\"generation\":%" PRIu32 ",\"state\":%" PRIu32 ",\"reason\":%" PRIu32 ",\"backend_failure\":%" PRIu32 ",\"drdy_levels_seen\":%" PRIu32 ","
         "\"zero_rate_probe_result\":%" PRIu32 ",\"zero_rate_probe\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "],"
+        "\"acquisition_timing\":{\"pre_low\":%" PRIu32 ",\"pre_pending\":%" PRIu32 ",\"post_low\":%" PRIu32 ",\"post_pending\":%" PRIu32 ","
+        "\"read_calls\":%" PRIu32 ",\"read_us_min\":%" PRIu32 ",\"read_us_max\":%" PRIu32 ",\"read_us_total\":%" PRIu32 "},"
         "\"source_rate_millihz\":%" PRIu32 ",\"mode\":%" PRIu32 ",\"uac_rate\":48000,"
         "\"axis\":%" PRIu32 ",\"range_g\":%" PRIu32 ",\"policy\":%" PRIu32 ","
         "\"gain_milli\":%" PRIu32 ",\"cutoff_millihz\":%" PRIu32 ",\"led_policy\":\"untouched\","
@@ -261,7 +265,9 @@ static void format_reply(uint32_t id, cmu_result r)
         __atomic_load_n(&runtime.probe_words[4], __ATOMIC_ACQUIRE),
         __atomic_load_n(&runtime.probe_words[5], __ATOMIC_ACQUIRE),
         __atomic_load_n(&runtime.probe_words[6], __ATOMIC_ACQUIRE),
-        __atomic_load_n(&runtime.probe_words[7], __ATOMIC_ACQUIRE), c->rate, c->mode,
+        __atomic_load_n(&runtime.probe_words[7], __ATOMIC_ACQUIRE),
+        timing.pre_low, timing.pre_pending, timing.post_low, timing.post_pending,
+        timing.read_calls, timing.read_us_min, timing.read_us_max, timing.read_us_total, c->rate, c->mode,
         c->config.axis, c->config.range_g, c->config.policy, c->config.gain_milli, c->config.cutoff_millihz,
         c->source_snapshot_fresh ? "true" : "false", now_us(), c->generation_output_samples, (unsigned)source_count(NULL), c->queue_high,
         c->queue_low == UINT32_MAX ? 0 : c->queue_low, c->correction_ppm,

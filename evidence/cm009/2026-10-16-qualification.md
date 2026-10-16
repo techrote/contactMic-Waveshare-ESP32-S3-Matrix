@@ -278,3 +278,29 @@ INT1 off, source modes, FIFO and thresholds. BLE does not call it. Failure latch
 FAULT. Native tests cover both writes/readback failures, invalid running-state
 calls, and selected-axis read compatibility. Physical comparison is pending.
 Exact-head dea88e1 CI `38888569968` passed all eight jobs before this experiment.
+
+## INT2 gate restores edges; timing remains a blocker
+
+Clean head `79b14cbb9547ba79fb1904d8f48349c4623e311f` was flashed (runtime ELF
+`9b89edf6aead5bb873aeeaa4d97ac6a0ecdaf6d15a9d32c5648627a06004a482`, binary
+`ecc07962269ac121bc3f0534ec367ca6fe0085389984ce6dad6b2e99450a85fb`).
+`preflight-int2-gate-010/` reached RUNNING and observed both GPIO levels, unlike
+all preserved 0x40 attempts. Source measured 892.484 Hz. Its matched window was
+10.245826 s device / 10.25 s host wall / 10.24 s captured audio / 10.237 s USB.
+There were 9,154 intervals, 7,995 reads, 1,159 misses/read-window faults:
+**12.6611% missed**, zero source I2C errors and ring overruns. USB output had zero
+steady starvation/failed/startup silence, short writes or queue discards; host
+overflow/drop/bad-block counts zero. Clock saturation zero; three late USB frame
+observations require review. This is `review_required`, not acceptance.
+
+`preflight-medium-011/` measured 3574.013 Hz but aborted when source gaps caused
+repriming/starvation. In its short baseline-to-abort observation, intervals rose
+23,502 to 27,146 and misses 14,593 to 18,176 (3,583/3,644 = 98.3260%, not a
+sustained qualification window). Raw observations and abort reason are retained.
+No high or sustained run was started on this unsuitable acquisition chain.
+
+This comparison supports the narrow INT2-output gate hypothesis on the actual
+revision 0x7C Matrix. It does not qualify rate, contact fidelity or BLE behavior.
+The next diagnostic separates pre-read low/pending from post-read low/pending
+and records read duration, without relaxing either validity check. Native tests
+cover the classifications; all 13 pass. Seven CM-006 tests passed on 79b14cb.
