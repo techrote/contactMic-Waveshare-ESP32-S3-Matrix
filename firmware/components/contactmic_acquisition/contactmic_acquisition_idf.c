@@ -502,3 +502,39 @@ esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *ctx, uint32_t out[8])
     xSemaphoreGive(ctx->gate);
     return rc;
 }
+
+esp_err_t cm_acq_idf_pulse_probe(cm_acq_idf *ctx, uint32_t out[6])
+{
+    if (!ctx || !out) return ESP_ERR_INVALID_ARG;
+    xSemaphoreTake(ctx->gate, portMAX_DELAY);
+    if (!load_flag(&ctx->measurement_done) || !load_flag(&ctx->running) || load_flag(&ctx->publication)) {
+        xSemaphoreGive(ctx->gate);return ESP_ERR_INVALID_STATE;
+    }
+    uint32_t v[6] = {UINT32_MAX, 0, UINT32_MAX, 0, 0, 0};
+    uint64_t start = (uint64_t)esp_timer_get_time(), rise = 0;
+    bool high = gpio_get_level((gpio_num_t)CMQ_INT2_GPIO) != 0;
+    uint64_t now;
+    do {
+        now = (uint64_t)esp_timer_get_time();
+        bool next = gpio_get_level((gpio_num_t)CMQ_INT2_GPIO) != 0;
+        if (next && !high) {
+            if (rise) {
+                uint32_t period = (uint32_t)(now - rise);
+                if (period < v[2]) v[2] = period;
+                if (period > v[3]) v[3] = period;
+            }
+            rise = now;++v[5];
+        } else if (!next && high && rise) {
+            uint32_t width = (uint32_t)(now - rise);
+            if (width < v[0]) v[0] = width;
+            if (width > v[1]) v[1] = width;
+            ++v[4];
+        }
+        high = next;
+    } while (now - start < 20000u);
+    if (!v[4]) v[0] = 0;
+    if (v[5] < 2) v[2] = 0;
+    memcpy(out, v, sizeof(v));
+    xSemaphoreGive(ctx->gate);
+    return ESP_OK;
+}

@@ -54,6 +54,10 @@ cm_acq *cm_acq_idf_core(cm_acq_idf *ctx);
  * under acquisition ownership. No samples
  * are published; this is diagnostic instrumentation, not rate measurement. */
 esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *ctx, uint32_t out[8]);
+/* CM-009 preparation-only GPIO polling diagnostic, 20 ms with acquisition gate
+ * held and IRQs enabled. Approximate high/period min/max, high/rising counts.
+ * Not electrical timing proof, acquired samples, or a source-rate denominator. */
+esp_err_t cm_acq_idf_pulse_probe(cm_acq_idf *ctx, uint32_t out[6]);
 
 #ifdef __cplusplus
 }

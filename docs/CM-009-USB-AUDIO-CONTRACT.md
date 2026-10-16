@@ -221,6 +221,15 @@ measure the driver call plus the immediate post-read window check; values satura
 at UINT32_MAX. Diagnostic bookkeeping occurs after the validity check and never
 performs I2C on USB. This instrumentation can affect timing and requires physical
 requalification after consequential changes.
+During diagnostic preparation, after rate measurement but before publication,
+the controller also retains a 20 ms GPIO polling observation under the acquisition
+gate. `pulse_probe_result` uses the same 0/1/error convention as the zero-rate
+probe. Its six words are high-width min/max (us), rising-period min/max (us),
+complete high-pulse count and rising-observation count. IRQs remain enabled;
+calibration pending edges are accounted before publication rebase. No I2C reads
+run during this observation. Polling/preemption limits its precision: this is
+an approximate software observation, not an electrical waveform or source-rate
+denominator. Stage 8 denotes probe failure. Evaluated audio begins later.
 
 Replies use `cm009.v1`, correlate `request_id`, and include stable serial, boot ID,
 reset reason, firmware/ELF identities, QMI identity, generation/state/reason, mode,

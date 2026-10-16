@@ -318,3 +318,29 @@ Effective USB sdkconfig used IDF debug optimization (`-Og`). The next comparison
 selects IDF performance optimization in the USB defaults, with unchanged pinned
 toolchain, acquisition checks, sensor modes and maximum 400 kHz I2C clock.
 Its effect on actual timing and loss must be measured before any acceptance.
+
+Performance head `1363ba30572c42639979d40c1035f2913b07f235` was built clean with
+effective `CONFIG_COMPILER_OPTIMIZATION_PERF=y` / verified `-O2`, and flashed.
+Runtime ELF `d464d3cadfe3b051e3d99025f985fdcba98a9adb377e8e76a2bc503fae83030d`,
+binary `3ddcd0fdbf847e7d31efe6d71930653882fdef46b36f645438e8c947ceb048bf`.
+`preflight-perf-safe-013/` measured 894.394 Hz, 729/9,141 misses (7.9751%) over
+10.231404 device seconds, 10.235 wall, 10.24 captured audio, 10.224 USB seconds.
+No steady USB silence/short writes/queue discards, clock saturation or host
+overflow/drop/bad blocks occurred. All observed validity failures were post-read
+low. Lifetime read min 266 us/max 730 us at safe-run end. This remains unsuitable.
+
+`preflight-perf-medium-014/` measured 3570.872 Hz but failed startup; its latest
+observation had 18,039 lifetime intervals/8,873 misses, compared with startup
+9,855/768. `preflight-perf-high-015/` measured 7148.194 Hz but also failed startup;
+latest lifetime 34,408 intervals/25,241 misses, compared with initial values in
+that run's raw telemetry. These do not contain valid continuous evaluated windows.
+Fastest observed I2C-call-plus-window duration across modes was 227 us. No I2C
+errors or ring overruns were observed; loss is not relabeled as startup success.
+
+The next preparation-only diagnostic pauses I2C ownership for 20 ms after rate
+measurement and observes GPIO pulse widths/periods with IRQs enabled. Calibration
+observations and pending edges precede publication rebase; no polled values become
+audio. This approximate software timing is not electrical compliance proof.
+Native tests verify a known synthetic 400 us high / 1000 us period waveform and
+refusal during publication; all 13 native tests pass. CI `38889827380` completed
+successfully on the preceding 0293dd1 head.

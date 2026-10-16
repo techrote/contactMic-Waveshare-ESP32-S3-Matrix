@@ -10,6 +10,7 @@ static bool irq_enabled, level_high=true, interrupt_in_read, io_failure;
 static unsigned reads;
 static unsigned probes;
 static bool probing;
+static bool pulse_wave;
 esp_err_t gpio_get_io_config(gpio_num_t pin,gpio_io_config_t *io)
 {CHECK(pin==13);*io=(gpio_io_config_t){.fun_sel=1,.ie=1};probing=true;return ESP_OK;}
 cmq_result cmq_diagnostic_snapshot(cmq_device *d,uint8_t out[12])
@@ -38,7 +39,7 @@ esp_err_t gpio_isr_handler_add(gpio_num_t pin,void (*fn)(void *),void *ctx)
 esp_err_t gpio_isr_handler_remove(gpio_num_t pin) { CHECK(pin==13);handler=NULL;return ESP_OK; }
 esp_err_t gpio_intr_enable(gpio_num_t pin) { CHECK(pin==13);irq_enabled=true;return ESP_OK; }
 esp_err_t gpio_intr_disable(gpio_num_t pin) { CHECK(pin==13);irq_enabled=false;return ESP_OK; }
-int gpio_get_level(gpio_num_t pin) { CHECK(pin==13);return level_high; }
+int gpio_get_level(gpio_num_t pin) { CHECK(pin==13);return pulse_wave ? clock_us%1000<400 : level_high; }
 cmq_result cmq_configure(cmq_device *d,const cmq_config *c)
 { CHECK(!cm_test_critical && c->drdy_enabled);d->config=*c;d->state=CMQ_CONFIGURED;return CMQ_OK; }
 cmq_result cmq_start(cmq_device *d)
@@ -68,6 +69,7 @@ int main(void)
     CHECK(c.ring_overruns==0 && c.successful_reads==300);
     CHECK(cm_acq_idf_publish(a)==ESP_OK && !cm_acq_idf_publishing(a));
     acquisition_cycle(a); CHECK(cm_acq_idf_publishing(a));
+    uint32_t pulse[6]={0};CHECK(cm_acq_idf_pulse_probe(a,pulse)==ESP_ERR_INVALID_STATE);
     clock_us+=1000; edge(); acquisition_cycle(a);
     cm_acq_sample sample; CHECK(cm_acq_peek(&a->core,0,&sample) && sample.index==0);
     CHECK(cm_acq_idf_measured_rate_millihz(a)==1000000);
@@ -98,6 +100,9 @@ int main(void)
     CHECK(words[6]==0x10001 && words[7]==2);
     cm_acq_idf_timing timing;cm_acq_idf_timing_snapshot(a,&timing);
     CHECK(timing.pre_low==1 && timing.post_pending==1 && timing.read_calls>=300);
+    pulse_wave=true;CHECK(cm_acq_idf_pulse_probe(a,pulse)==ESP_OK);
+    CHECK(pulse[0]==400 && pulse[1]==400 && pulse[2]==1000 && pulse[3]==1000);
+    CHECK(pulse[4]>=19 && pulse[5]>=19);pulse_wave=false;
     cm_acq_idf_destroy(a);
     CHECK(cm_test_critical==0);
     puts("CM-006 production IDF adapter scheduler tests passed");return 0;
