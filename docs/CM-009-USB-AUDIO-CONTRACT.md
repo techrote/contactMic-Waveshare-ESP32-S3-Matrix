@@ -118,7 +118,10 @@ Stop gates the consumer before asynchronous shutdown. Reopen creates a new
 generation without requiring physical unplug. Reset/detach invalidation prevents
 old transfer callbacks reopening a source before a fresh mount. The pinned stack
 calls its first audio preload before the final SET_INTERFACE callback; start is
-idempotent across that ordering. Source queues/DSP history are not reused across
+idempotent across that ordering. The preload callback's second argument is the
+zero-based audio **function ID** (0 for this build), not AudioStreaming interface
+number 1. The adapter regression uses the pinned stack's actual call convention.
+Source queues/DSP history are not reused across
 these boundaries; lifetime diagnostics survive them.
 
 Suspend deliberately gates and disconnects the application USB function, clears
@@ -248,7 +251,12 @@ observations require review rather than automatic success. A run-level pass neve
 sets `issue_accepted=true` and never replaces the remaining physical programme.
 
 Each new directory preserves metadata, raw timestamped telemetry, summary,
-optional WAV and SHA-256 hashes. Existing directories are never recursively
+optional WAV and SHA-256 hashes. `control.jsonl` additionally preserves timestamped
+CDC request/response byte fragments as hex before parsing/validation, including
+initial/configuration/shutdown exchanges and rejected or malformed replies.
+Telemetry retains the status which triggers an abort. Observed steady-state
+silence or short writes abort the attempt promptly instead of continuing an
+already-failed run for its full requested duration. Existing directories are never recursively
 removed or overwritten. Re-evaluation verifies hashes and does not rewrite files:
 
 ```powershell

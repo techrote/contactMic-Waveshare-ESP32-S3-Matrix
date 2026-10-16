@@ -167,10 +167,11 @@ bool tud_audio_set_itf_close_EP_cb(uint8_t rhport, tusb_control_request_t const 
     if (r->wIndex != CMU_AUDIO_ITF) return false;
     gate(CMU_REASON_STOP); return true;
 }
-bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t itf, uint8_t ep, uint8_t alt)
+bool tud_audio_tx_done_pre_load_cb(uint8_t rhport, uint8_t func_id, uint8_t ep, uint8_t alt)
 {
     (void)rhport;
-    if (itf != CMU_AUDIO_ITF || ep != CMU_AUDIO_EP || alt != 1) return false;
+    /* TinyUSB 0.18.0 passes the audio-function index here, not bInterfaceNumber. */
+    if (func_id != 0 || ep != CMU_AUDIO_EP || alt != 1) return false;
     /* TinyUSB invokes this also for the first transfer, before set_itf_cb. */
     if (!start_endpoint()) return false;
     uint8_t bytes[CMU_FRAME_BYTES];

@@ -110,11 +110,12 @@ def choose_interfaces(serial_id: str, ports: list, devices: list, hostapis: list
 
 
 class ControlLink:
-    def __init__(self, serial_object, serial_id: str, timeout: float = 2.0):
+    def __init__(self, serial_object, serial_id: str, timeout: float = 2.0, audit=None):
         self.serial = serial_object
         self.serial_id = serial_id
         self.timeout = timeout
         self.ident = 0
+        self.audit = audit
 
     def request(self, command: str = "STATUS", values: tuple[int, ...] = ()) -> dict:
         if command not in ("STATUS", "CONFIG") or (command == "STATUS" and values) or (
@@ -125,12 +126,16 @@ class ControlLink:
             raise QualificationError("control request identity exhausted")
         suffix = "".join(f" {integer(v, 'configuration', 0xffffffff)}" for v in values)
         request = f"{command} {self.ident}{suffix}\n".encode("ascii")
+        if self.audit:
+            self.audit("request", request)
         if self.serial.write(request) != len(request):
             raise QualificationError("short CDC command write")
         deadline = time.monotonic() + self.timeout
         collected = bytearray()
         while time.monotonic() < deadline:
             chunk = self.serial.read_until(b"\n", size=4096 - len(collected))
+            if chunk and self.audit:
+                self.audit("response", chunk)
             collected.extend(chunk)
             if len(collected) >= 4096:
                 raise QualificationError("CDC response exceeds bounded size")
@@ -382,16 +387,21 @@ def capture(args, *, modules=None) -> int:
         "format": {"rate": 48000, "channels": 1, "dtype": "int16"},
         "unavailable": ["physical USB bus error totals", "absolute acceleration calibration"]}
     rows: list[dict] = []
-    link = stream = writer = serial_device = None
+    link = stream = writer = serial_device = control_log = None
     buffer = CaptureBuffer(args.wav)
     try:
+        control_log = (directory / "control.jsonl").open("x", encoding="utf-8")
+        def audit(direction, payload):
+            control_log.write(json.dumps({"monotonic_ns": time.monotonic_ns(),
+                "unix_ns": time.time_ns(), "direction": direction, "hex": payload.hex()}) + "\n")
+            control_log.flush()
         serial_device = serial_api.Serial(port=None, baudrate=115200, timeout=0.25, write_timeout=1)
         serial_device.dtr = False; serial_device.rts = False
         serial_device.port = port.device; serial_device.open()
         # This is the matched application CDC interface, not the ROM/JTAG port.
         # TinyUSB connected() requires DTR; application DTR does not drive BOOT.
         serial_device.dtr = True
-        link = ControlLink(serial_device, args.serial)
+        link = ControlLink(serial_device, args.serial, audit=audit)
         initial = link.request()
         if initial["state"] != 0:
             raise QualificationError("close all recording applications before configuring the USB microphone")
@@ -406,9 +416,10 @@ def capture(args, *, modules=None) -> int:
         with (directory / "telemetry.jsonl").open("x", encoding="utf-8") as log:
             while True:
                 data = link.request()
+                failure = None
                 if (data["serial"], data["boot_id"], data["firmware"], data["elf_sha256"]) != tuple(
                         initial[k] for k in ("serial", "boot_id", "firmware", "elf_sha256")):
-                    raise QualificationError("board reboot/build/identity changed during capture")
+                    failure = "board reboot/build/identity changed during capture"
                 row = {"monotonic_ns": time.monotonic_ns(), "phase": "startup",
                        "device": data, "capture": asdict(buffer.counts)}
                 complete = False
@@ -416,11 +427,11 @@ def capture(args, *, modules=None) -> int:
                     if data["state"] == 3 and buffer.counts.frames:
                         row["phase"] = "baseline"; baseline = row
                     elif data["state"] == 4 or time.monotonic()-start > 10:
-                        raise QualificationError("source did not reach RUNNING within startup budget")
+                        failure = failure or "source did not reach RUNNING within startup budget"
                 else:
                     row["phase"] = "steady"
                     if data["generation"] != baseline["device"]["generation"] or data["state"] != 3:
-                        raise QualificationError("capture generation changed or source stopped/starved")
+                        failure = failure or "capture generation changed or source stopped/starved"
                     elapsed = min((row["monotonic_ns"]-baseline["monotonic_ns"])/1e9,
                         (data["uptime_us"]-baseline["device"]["uptime_us"])/1e6,
                         (data["output_position"]-baseline["device"]["output_position"])/48000,
@@ -428,6 +439,14 @@ def capture(args, *, modules=None) -> int:
                     if elapsed >= args.duration:
                         row["phase"] = "final"; complete = True
                 log.write(json.dumps(row, allow_nan=False) + "\n"); log.flush(); rows.append(row)
+                # Retain the observation which triggered an abort, not just its reason.
+                # Raw CDC bytes above also survive malformed/source-unavailable replies.
+                if failure:
+                    raise QualificationError(failure)
+                if baseline is not None and row is not baseline and any(
+                        data["usb"][k] > baseline["device"]["usb"][k]
+                        for k in ("starvation_silence", "failed_silence", "startup_silence", "short_writes")):
+                    raise QualificationError("steady-state USB silence/short write; aborting failed attempt")
                 if writer and writer.error:
                     raise QualificationError(writer.error)
                 if buffer.counts.overflows or buffer.counts.queue_drops or buffer.counts.bad_blocks:
@@ -462,6 +481,8 @@ def capture(args, *, modules=None) -> int:
                 serial_device.close()
             except Exception as exc:
                 metadata["cleanup_errors"].append(f"serial close: {exc}")
+        if control_log is not None:
+            control_log.close()
         metadata["final_capture"] = asdict(buffer.counts)
         dump(directory / "metadata.json", metadata)
         # Early failures still produce a complete, hashable diagnostic bundle.

@@ -75,7 +75,11 @@ int main(void)
     tud_mount_cb();
     tusb_control_request_t open={1,11,1,1,0}, close={1,11,0,1,0};
     frontend=true;
-    CHECK(tud_audio_tx_done_pre_load_cb(0,1,0x81,1));
+    CHECK(!tud_audio_tx_done_pre_load_cb(0,1,0x81,1));
+    CHECK(!tud_audio_tx_done_pre_load_cb(0,0,0x83,1));
+    CHECK(!tud_audio_tx_done_pre_load_cb(0,0,0x81,0));
+    /* Pinned TinyUSB audio_device.c passes idx_audio_fct=0, not AS interface 1. */
+    CHECK(tud_audio_tx_done_pre_load_cb(0,0,0x81,1));
     uint32_t generation=runtime.core.generation;
     CHECK(tud_audio_set_itf_cb(0,&open));
     CHECK(runtime.core.generation==generation&&backend_calls==0);
@@ -84,7 +88,7 @@ int main(void)
     cmu_worker_step(&runtime.core,0);cmu_worker_step(&runtime.core,250000);
     cmu_tick(&runtime.core,250000);produce(24);
     clock_us=251000;frontend=true;
-    CHECK(tud_audio_tx_done_pre_load_cb(0,1,0x81,1));
+    CHECK(tud_audio_tx_done_pre_load_cb(0,0,0x81,1));
     CHECK(runtime.core.state==CMU_RUNNING);
     unsigned calls=backend_calls;
     feed("STATUS 7\n");cdc_room=0;tud_cdc_rx_cb(0);
@@ -93,7 +97,7 @@ int main(void)
     /* Flooding/closed CDC must not stall source or output callbacks. */
     feed("STATUS 8\nSTATUS 9\n");cdc_pump();
     CHECK(runtime.core.counters.cdc_dropped_replies==2);
-    ++clock_us;CHECK(tud_audio_tx_done_pre_load_cb(0,1,0x81,1));
+    ++clock_us;CHECK(tud_audio_tx_done_pre_load_cb(0,0,0x81,1));
     CHECK(backend_calls==calls);
     cdc_room=64;
     for(unsigned i=0;i<60;i++)tud_cdc_tx_complete_cb(0);
@@ -106,14 +110,14 @@ int main(void)
     cdc_open=true;
     /* An old transfer callback after a bus-reset indication cannot restart. */
     tud_event_hook_cb(0,DCD_EVENT_BUS_RESET,true);
-    CHECK(!tud_audio_tx_done_pre_load_cb(0,1,0x81,1));
+    CHECK(!tud_audio_tx_done_pre_load_cb(0,0,0x81,1));
     CHECK(!runtime.core.requested&&!runtime.mounted);
     tud_mount_cb();CHECK(tud_audio_set_itf_cb(0,&open));
     CHECK(runtime.core.generation>generation);
     CHECK(tud_audio_set_itf_close_EP_cb(0,&close));
     CHECK(!runtime.core.requested);
     tud_suspend_cb(false);CHECK(runtime.reconnect_pending&&!runtime.mounted);
-    CHECK(!tud_audio_tx_done_pre_load_cb(0,1,0x81,1));
+    CHECK(!tud_audio_tx_done_pre_load_cb(0,0,0x81,1));
     CHECK(backend_calls==calls); /* All the above callbacks remained nonblocking. */
     frontend=false;cmu_worker_step(&runtime.core,300000);
     CHECK(!acq.live);

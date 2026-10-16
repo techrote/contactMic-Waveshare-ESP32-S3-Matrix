@@ -151,6 +151,15 @@ class InterfaceTests(unittest.TestCase):
         with self.assertRaises(u.QualificationError):
             u.ControlLink(p,SERIAL).request()
 
+    def test_raw_rejected_cdc_reply_is_audited(self):
+        class Port:
+            def write(self, data): return len(data)
+            def read_until(self, *args, **kwargs): return b'{"schema":"broken"}\n'
+        events = []
+        with self.assertRaises(u.QualificationError):
+            u.ControlLink(Port(), SERIAL, audit=lambda *item: events.append(item)).request()
+        self.assertEqual(events, [("request", b"STATUS 1\n"), ("response", b'{"schema":"broken"}\n')])
+
     def test_bounded_audio_callback(self):
         b = u.CaptureBuffer(True,2)
         status = SimpleNamespace(input_overflow=False)
@@ -160,6 +169,31 @@ class InterfaceTests(unittest.TestCase):
         self.assertEqual(b.counts.queue_drops,2)
         b.callback(b"",480,None,SimpleNamespace(input_overflow=True))
         self.assertEqual((b.counts.bad_blocks,b.counts.overflows),(1,1))
+
+    def test_failed_source_observation_is_preserved(self):
+        stopped = device(); stopped["state"] = 0
+        failed = device(); failed["state"] = 4
+        class Serial:
+            def __init__(self, **kwargs): pass
+            def open(self): pass
+            def close(self): pass
+        class Stream:
+            def __init__(self, **kwargs): pass
+            def start(self): pass
+            def stop(self): pass
+            def close(self): pass
+        modules = (SimpleNamespace(Serial=Serial), SimpleNamespace(comports=lambda:[self.port]),
+            SimpleNamespace(query_devices=lambda:self.audio, query_hostapis=lambda:self.apis,
+                            RawInputStream=Stream))
+        with tempfile.TemporaryDirectory() as directory:
+            args = SimpleNamespace(duration=10, purpose="preflight", policy="high", led_state="unknown",
+                gain=1, high_pass=20, serial=SERIAL, port=None, audio_device=None,
+                output=Path(directory)/"failed", axis="z", range_g=2, note="synthetic", wav=False)
+            with patch.object(u.ControlLink, "request", side_effect=[stopped, stopped, failed, stopped]), patch("builtins.print"):
+                self.assertEqual(u.capture(args, modules=modules), 2)
+            rows = [json.loads(line) for line in (args.output/"telemetry.jsonl").read_text().splitlines()]
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["device"]["state"], 4)
 
     def test_failed_capture_is_preserved_without_overwrite(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -178,7 +212,7 @@ class InterfaceTests(unittest.TestCase):
             with self.assertRaises(FileExistsError): u.capture(args,modules=modules)
             self.assertEqual((out/"SHA256SUMS.json").read_bytes(),before)
 
-    def test_capture_orchestration_with_virtual_usb_devices(self):
+    def run_virtual_capture(self, fault=None):
         clock = [0.0]
         active = [False]
         callback = [None]
@@ -189,6 +223,8 @@ class InterfaceTests(unittest.TestCase):
             def write(self, request):
                 tokens=request.decode().split()
                 d=device(int(clock[0])); d.update(request_id=int(tokens[1]), state=3 if active[0] else 0, mode=0, policy=0)
+                if active[0] and clock[0] >= 2 and fault:
+                    fault(d)
                 self.payload=(json.dumps(d)+"\n").encode()
                 return len(request)
             def read_until(self,*args,**kwargs):
@@ -210,12 +246,27 @@ class InterfaceTests(unittest.TestCase):
                 gain=1,high_pass=20,serial=SERIAL,port=None,audio_device=None,output=Path(directory)/"run",
                 axis="z",range_g=2,note="explicit synthetic USB/clock",wav=False)
             with patch.object(u.time,"monotonic",side_effect=lambda:clock[0]), patch.object(u.time,"monotonic_ns",side_effect=lambda:int(clock[0]*1e9)), patch.object(u.time,"sleep",side_effect=sleep), patch("builtins.print"):
-                self.assertEqual(u.capture(args,modules=modules),0)
+                self.assertEqual(u.capture(args,modules=modules),2 if fault else 0)
             result=u.summarize(args.output)
+            self.assertFalse(active[0])
+            if fault:
+                self.assertEqual(result["result"], "incomplete")
+                rows = [json.loads(line) for line in (args.output/"telemetry.jsonl").read_text().splitlines()]
+                self.assertEqual(rows[-1]["device"]["uptime_us"], 12000000)
+                self.assertTrue((args.output/"control.jsonl").stat().st_size)
+                return
             self.assertEqual(result["result"],"evidence_complete")
             self.assertFalse(result["issue_accepted"])
             self.assertEqual(result["durations"]["host_audio_s"],2)
-            self.assertFalse(active[0])
+
+    def test_capture_orchestration_with_virtual_usb_devices(self):
+        self.run_virtual_capture()
+
+    def test_capture_aborts_and_retains_first_steady_failure(self):
+        for fault in (lambda d: d["usb"].update(starvation_silence=48),
+                      lambda d: d.update(generation=8)):
+            with self.subTest(fault=fault):
+                self.run_virtual_capture(fault)
 
     def test_help_no_hardware(self):
         with patch.object(u,"hardware_modules",side_effect=AssertionError("device access")), patch("builtins.print"):
