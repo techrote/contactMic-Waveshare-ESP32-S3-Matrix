@@ -344,3 +344,77 @@ audio. This approximate software timing is not electrical compliance proof.
 Native tests verify a known synthetic 400 us high / 1000 us period waveform and
 refusal during publication; all 13 native tests pass. CI `38889827380` completed
 successfully on the preceding 0293dd1 head.
+
+## Pulse-window result and acceptance blocker
+
+The operator repeated BOOT/RESET; ROM COM9 and MAC were positively re-verified.
+Clean `79d8734f1ea391db5f35a698334e3abed1a80512` (tree
+`c8afeaa00bd186e5ffbcf098696e9f432bc62810`) was flashed. Runtime ELF matched saved
+`binary-015/`: `465dbb4d0037ef575bc1d725b04ab5574bae3c2e1c7417e874407b24a19bd211`;
+binary `d6d08ea7f02856eb22a06c43ec9d4935927b255323b4f82a82b010a36938d158`.
+Application COM11/full-serial WASAPI input 12 re-enumerated. Boot `3888869892`
+was retained across all three runs below. Exact-head CI `38890974011` passed all
+eight jobs, including both firmware builds and the retained integration tests.
+
+| Raw evidence directory | Measured DRDY Hz | Preparation GPIO high us | GPIO period us | Outcome |
+| --- | ---: | ---: | ---: | --- |
+| `preflight-pulse-safe-016/` | 895.703 | 400–420 (17 complete highs) | 1118–1120 | Ten-second diagnostic, review required |
+| `preflight-pulse-medium-017/` | 3569.987 | 100–106 (71 complete highs) | 276–283 | Startup budget expired; no valid evaluated window |
+| `preflight-pulse-high-018/` | 7142.943 | 57–66 (142 complete highs) | 135–145 | Startup failed; no valid evaluated window |
+
+These pulse observations were made without I2C traffic, with acquisition gate
+held and IRQs enabled during preparation. Polling/interrupt/preemption uncertainty
+prevents claiming electrical pulse-width precision or bus compliance. They are
+not substituted for the measured DRDY source rate or interval denominator.
+
+Safe's matched evaluated deltas were 9,136 intervals / 9,104 reads / 32 misses,
+**0.350263% missed**, all read-window faults. Actual durations: device 10.224230 s,
+host wall 10.235 s, captured audio 10.23 s, USB output 10.215 s. No evaluated I2C
+errors/ring overruns, USB startup/starvation/failed silence, short writes, queue
+discards, clock saturation or host overflow/drop/bad blocks occurred. Three late
+USB frame observations remain review items. Queue high 19; source gap zeros 32.
+The improved short result is retained alongside earlier worse runs, not treated
+as proof that the pulse probe fixed loss or that any sustained target passed.
+
+Lifetime read-call timing at safe end was min 239/max 690 us; medium/high subsequently
+observed a minimum 225 us. The approximate medium/high high windows are below the
+measured call duration. Even an ideal two-byte repeated-start register read uses
+at least 45 SCL periods (three address/register bytes plus two data bytes, each
+with ACK/NACK), 112.5 us at 400 kHz, excluding other overhead. This is a calculated
+lower bound, not an observed bus trace. These findings and the actual failed
+preflights block qualification under the retained whole-read DRDY-high contract.
+No attempt was extended to 600 seconds. Neither high nor medium is accepted;
+safe cannot substitute for medium, and no production axis/range/default is chosen.
+
+`control-validation-019/` then exercised five invalid configuration limits,
+malformed syntax, an oversized 400-byte line and a bounded 32-request unread CDC
+burst (0.5 s unread). Invalid values left configuration/generation unchanged;
+oversize incremented the overflow counter; 31 dropped replies were explicitly
+reported under pressure. Same boot/generation and source lifetime counters were
+retained, queue 0, capture stopped. This is **stopped-state CDC evidence only**;
+it does not satisfy audio independence during CDC pressure. Raw bytes, structured
+results, the local script and hashes are retained. The actual existing logical
+defaults were restored and queried: fixed SAFE, Z, ±2 g, gain 1, high-pass 20 Hz.
+AUTO ceiling remains unqualified SAFE. No BLE defaults were changed.
+
+Disposition: **USB-acquisition-timing-blocked / BLE-hardware-held**. The target
+USB-microphone-accepted disposition is not achieved. Required ordinary meaningful
+recording, both sustained windows, 10 reopen/5 qualified cable/1 suspend cycles,
+active-audio CDC stress, controlled axis/range/contact comparisons and final
+default verification remain held. One diagnostic power cycle is not a passing
+audio cable cycle. No electrical timing/compliance or acceleration calibration
+is claimed. The last operator observation was LEDs off/no warnings; firmware
+does not refresh LEDs.
+
+Next action requires vendor-backed clarification of register coherency/DRDY
+timing or a separately reviewed acquisition-contract decision. Do not relax the
+read-window rule, overclock I2C, replace the agreed acquisition path, suppress
+losses or claim an unexecuted sustained/lifecycle test. PR17 stays draft and #16
+open; CM-007/#7/#15 and CM-008 remain separate. Documentation-only checkpoint
+changes after 79d8734 do not constitute a newly flashed binary.
+
+Integrity manifests for the latest physical attempts (SHA-256):
+- `preflight-pulse-safe-016/SHA256SUMS.json`: `8cb7682b3f99f52f4abb6f861658b0afc91a7aae1294e6a2fb98ac07b6fb125e`
+- `preflight-pulse-medium-017/SHA256SUMS.json`: `c6a8c6f6c50b2ebb1f4fbe2119c162f80403b762c83af28ce8d907c69239f9ae`
+- `preflight-pulse-high-018/SHA256SUMS.json`: `8ea205fb3386da4f4a3349d04cee86058a5074462071dff087164417e66d06fb`
+- `control-validation-019/SHA256SUMS.json`: `c9c9bbaf25961843699f5f69dede5dcebbaf90f752fc209bc7659d6f09135fb1`

@@ -71,6 +71,9 @@ preserving AI/little-endian and leaving INT1 disabled. This provisional exceptio
 requires physical comparison against preserved failures; it does not authorize
 other reserved-bit changes or alter BLE configuration/defaults. A failed
 experiment must be preserved and reverted; success needs affected requalification.
+The actual Matrix comparison restored GPIO edges with this gate, as recorded in
+`evidence/cm009/2026-10-16-qualification.md`. This supports the narrow USB output
+enable on revision 0x7C; medium/high read-window timing still blocks acceptance.
 
 The driver must expose typed operations for:
 

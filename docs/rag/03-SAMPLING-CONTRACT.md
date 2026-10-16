@@ -92,6 +92,15 @@ reprime rules are defined and tested in `docs/CM-009-USB-AUDIO-CONTRACT.md`.
 Defaults and adaptive source transitions are transport-specific. USB observations
 must not silently change BLE's qualified or unqualified default status.
 
+CM-009's 2026-10-16 physical attempts are blocked by read-window timing, not USB
+format negotiation. Medium/high fail short preflight; approximate observed DRDY
+high windows are below the measured I2C-call duration. Safe-mode evidence is not
+medium acceptance. Preserve the 400 kHz ceiling and validity/loss rules; any
+vendor-backed coherency reinterpretation or acquisition-mode change needs an
+explicit reviewed contract amendment before implementation. See the CM-009
+evidence report; these observations do not certify BLE hardware or change its
+defaults.
+
 ## Testability
 
 Acquisition scheduling, counters, ring behavior and rate-policy state transitions must be testable with a fake sample source on a normal CI host. Physical I2C/ISR behavior is separately hardware-qualified.

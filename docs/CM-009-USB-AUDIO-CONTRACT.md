@@ -9,12 +9,31 @@ and production defaults are not established by its source or automated tests.
 Issue #16 and its PR remain open/draft until the physical gates are met. CM-007/#7
 BLE hardware qualification and its draft PR #15 remain separate and held.
 
-`firmware/` remains the accepted BLE application, unchanged. `firmware-usb/` is an
+The BLE application and protocol remain unchanged. Shared components add
+diagnostics and a typed INT2 output-gate operation that only USB calls.
+`firmware-usb/` is an
 isolated USB-only ESP-IDF project sharing the accepted QMI/acquisition components.
 It has a separate sdkconfig/build directory and does not initialize or enable a
 radio. Simultaneous transports and a second consumer of the SPSC ring are excluded.
-The native OS microphone works without the Python receiver, CDC being open, a
-Bluetooth adapter, a virtual audio cable, or an application-specific kernel driver.
+Native OS recording uses the OS UAC2 driver without a Python audio receiver,
+open CDC connection, Bluetooth adapter, virtual audio cable or custom kernel
+driver. Meaningful ordinary recording still requires physical acceptance.
+
+Physical checkpoint (2026-10-16): native Windows UAC2/CDC and recovery verified;
+USB INT2 gate restores DRDY on actual revision 0x7C. Acquisition timing blocks
+acceptance. Preparation-only polling observed approximate high windows of
+400–420 us safe, 100–106 us medium and 57–66 us high, while observed driver-call
+plus post-window-check duration was at least 225 us. A repeated-start two-byte
+register read has at least 45 SCL bit periods (address/write, register, address/read,
+two data bytes with ACK/NACK), or 112.5 us at the accepted 400 kHz ceiling,
+excluding START/STOP, stretching and software time. Software polling is not an
+electrical timing measurement, but the actual failed source/capture observations
+already prevent acceptance. Do not relax valid-window checks, increase I2C past
+the sensor limit or conceal gaps to bypass this blocker. A vendor-backed
+coherency/timing clarification or separately reviewed acquisition-contract change
+is required before resuming medium/high qualification. Details and raw references:
+`evidence/cm009/2026-10-16-qualification.md`. No 600-second run, qualified default,
+full lifecycle, contact-response or electrical acceptance is established.
 
 ## Descriptor and stack decision
 

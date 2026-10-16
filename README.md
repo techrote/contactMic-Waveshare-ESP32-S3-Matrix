@@ -23,6 +23,14 @@ PCM16, not a claim that the accelerometer samples at 48 kHz. **USB hardware acce
 is held** until actual Windows recording, sustained/lifecycle/contact tests and
 recovery are verified. USB success cannot certify BLE or close CM-007.
 
+The [2026-10-16 physical checkpoint](evidence/cm009/2026-10-16-qualification.md)
+verified native Windows UAC2/CDC enumeration and recovery, and corrected the
+sensor INT2 output enable for USB. Qualification remains blocked by acquisition
+timing: medium/high fail short preflight, while safe still has counted losses.
+Approximate observed DRDY high windows are shorter than measured read durations
+in medium/high. No sustained or meaningful ordinary-microphone acceptance is
+claimed, and no qualified USB production default has been selected.
+
 ## USB software and preflight entry point
 
 Build from an activated ESP-IDF v5.5.5 shell:

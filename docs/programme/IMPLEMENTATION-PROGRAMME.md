@@ -218,6 +218,14 @@ Track **software-complete / USB-hardware-held** separately from
 issue #16 or merge its hardware-gated PR. USB output at 48 kHz is not a sensor ODR
 or bandwidth guarantee. Keep the 400 kHz I2C limit and original source-miss targets.
 
+2026-10-16 physical disposition: **USB-acquisition-timing-blocked /
+BLE-hardware-held**. Native Windows enumeration/recovery and USB INT2-gate repair
+are evidenced, but medium/high fail short preflight and safe retains counted
+losses. The observed pulse/read timing requires a vendor-backed clarification or
+separately reviewed acquisition-contract decision. Keep #16 open and PR #17 draft;
+do not promote this checkpoint to USB-microphone-accepted. Evidence:
+`evidence/cm009/2026-10-16-qualification.md`.
+
 ## Common issue completion rule
 
 Every GitHub issue created from this programme is an executable agent prompt.
