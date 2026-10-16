@@ -188,3 +188,19 @@ cmq_result cmq_read_axis(cmq_device *d, cmq_axis axis, int16_t *out)
 }
 cmq_result cmq_read_selected(cmq_device *d, int16_t *out)
 { return d ? cmq_read_axis(d, d->config.axis, out) : CMQ_INVALID; }
+
+cmq_result cmq_diagnostic_snapshot(cmq_device *d, uint8_t out[12])
+{
+    if (!d || !out) return CMQ_INVALID;
+    if (d->state != CMQ_RUNNING) return CMQ_STATE;
+    const uint8_t regs[12] = {CTRL1, CTRL2, CTRL3, CTRL7, CTRL8, FIFO_CTRL,
+        0x2d, 0x2e, 0x30, 0x31, (uint8_t)(AX_L + 2 * d->config.axis),
+        (uint8_t)(AX_L + 2 * d->config.axis + 1)};
+    uint8_t snapshot[12];
+    for (size_t i = 0; i < sizeof(snapshot); ++i) {
+        cmq_result rc = read_reg(d, regs[i], &snapshot[i], 1);
+        if (rc != CMQ_OK) return rc;
+    }
+    memcpy(out, snapshot, sizeof(snapshot));
+    return CMQ_OK;
+}

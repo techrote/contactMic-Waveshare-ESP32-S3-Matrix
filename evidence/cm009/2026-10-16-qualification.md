@@ -202,3 +202,19 @@ retaining low/high bits without changing sensor configuration or the ISR. Sparse
 level observations cannot establish a pulse rate. Native coverage checks both
 levels and controller ownership; all 13 native tests and the pinned USB build
 pass. The operator confirmed BOOT/RESET recovery for this targeted diagnostic.
+
+Clean GPIO-diagnostic head `4461192686c37f36f4e46467784492a31fd35a69` was flashed
+after ROM MAC re-verification. Runtime ELF matched
+`90612a63136367b45eb782a0027079c253275f44c5c29cc07b98482789123501`,
+application binary SHA-256 `d11c0ba02cf8249409624e59000fb0e32f325ad35b9f8a611480cf6e205d5a15`.
+`preflight-gpio-005/` failed startup with boot ID `2697842728`, zero intervals and
+`drdy_levels_seen=1` (low only in sparse preparation observations), backend stage
+4. This cannot rule out brief pulses or establish electrical pin integrity.
+
+The next bounded probe reads known sensor registers twice, 20 ms apart, only
+after a completed zero-rate measurement, before cleanup. It is serialized by the
+acquisition gate. It preserves controls/status and raw timestamp/selected-axis
+bytes without publishing those bytes as audio or counting them as source reads.
+Driver I/O failures remain counted. Native tests cover read-only behavior,
+every read failure preserving the caller output, and rejection outside zero-rate
+calibration. All 13 native tests passed after this instrumentation.

@@ -63,6 +63,10 @@ cmq_result cmq_stop(cmq_device *);
 cmq_result cmq_set_drdy(cmq_device *, bool enabled);
 cmq_result cmq_read_axis(cmq_device *, cmq_axis, int16_t *sample);
 cmq_result cmq_read_selected(cmq_device *, int16_t *sample);
+/* Read-only failure diagnosis, not acquired samples. Bytes: CTRL1/2/3/7/8,
+ * FIFO_CTRL, STATUSINT/0, timestamp low/mid, selected axis low/high. Timestamp
+ * bytes are sequential observations and can tear; never a source denominator. */
+cmq_result cmq_diagnostic_snapshot(cmq_device *, uint8_t out[12]);
 uint32_t cmq_nominal_rate_millihz(cmq_mode);
 uint32_t cmq_settling_us(cmq_mode);
 

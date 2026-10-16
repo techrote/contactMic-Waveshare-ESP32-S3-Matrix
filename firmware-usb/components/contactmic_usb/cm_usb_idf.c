@@ -29,6 +29,7 @@ static struct {
     usb_phy_handle_t phy;
     bool claimed, source_ready, stream_open, reconnect_pending, mounted;
     uint32_t bus_epoch, observed_epoch, boot_id, backend_failure, drdy_levels_seen;
+    uint32_t probe_result, probe_words[6];
     uint64_t reconnect_at;
     char serial[13], product[24], elf_hash[65];
     char rx[CMU_CONTROL_BYTES], tx[3072];
@@ -53,6 +54,7 @@ static cmu_result source_begin(void *p, const cmu_config *config, uint32_t mode)
     (void)p;
     if (!runtime.source_ready || !runtime.acquisition || mode > CMU_HIGH) return CMU_IO;
     __atomic_store_n(&runtime.drdy_levels_seen, 0u, __ATOMIC_RELEASE);
+    __atomic_store_n(&runtime.probe_result, 0u, __ATOMIC_RELEASE);
     if (runtime.device->state == CMQ_FAULT && cmq_reset(runtime.device) != CMQ_OK)
         return backend_result(ESP_FAIL, 1);
     const cm_acq_policy policies[] = {CM_ACQ_POLICY_SAFE, CM_ACQ_POLICY_MEDIUM, CM_ACQ_POLICY_HIGH};
@@ -73,7 +75,15 @@ static cmu_result source_ready(void *p, uint32_t *rate)
     (void)__atomic_fetch_or(&runtime.drdy_levels_seen, level, __ATOMIC_RELEASE);
     if (!cm_acq_idf_measurement_ready(runtime.acquisition)) return CMU_BUSY;
     *rate = cm_acq_idf_measured_rate_millihz(runtime.acquisition);
-    return *rate ? CMU_OK : backend_result(ESP_FAIL, 4);
+    if (*rate) return CMU_OK;
+    uint32_t words[6];
+    esp_err_t rc = cm_acq_idf_zero_rate_probe(runtime.acquisition, words);
+    if (rc == ESP_OK)
+        for (size_t i = 0; i < 6; ++i)
+            __atomic_store_n(&runtime.probe_words[i], words[i], __ATOMIC_RELEASE);
+    __atomic_store_n(&runtime.probe_result,
+        rc == ESP_OK ? 1u : (0x10000u | ((uint32_t)rc & 0xffffu)), __ATOMIC_RELEASE);
+    return backend_result(ESP_FAIL, 4);
 }
 static cmu_result source_publish(void *p)
 { (void)p; return runtime.acquisition ? backend_result(cm_acq_idf_publish(runtime.acquisition), 6) : CMU_IO; }
@@ -221,6 +231,7 @@ static void format_reply(uint32_t id, cmu_result r)
         "\"serial\":\"%s\",\"boot_id\":%" PRIu32 ",\"reset_reason\":%u,"
         "\"firmware\":\"%s\",\"elf_sha256\":\"%s\",\"source_available\":%s,\"qmi\":%s,"
         "\"generation\":%" PRIu32 ",\"state\":%" PRIu32 ",\"reason\":%" PRIu32 ",\"backend_failure\":%" PRIu32 ",\"drdy_levels_seen\":%" PRIu32 ","
+        "\"zero_rate_probe_result\":%" PRIu32 ",\"zero_rate_probe\":[%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "],"
         "\"source_rate_millihz\":%" PRIu32 ",\"mode\":%" PRIu32 ",\"uac_rate\":48000,"
         "\"axis\":%" PRIu32 ",\"range_g\":%" PRIu32 ",\"policy\":%" PRIu32 ","
         "\"gain_milli\":%" PRIu32 ",\"cutoff_millihz\":%" PRIu32 ",\"led_policy\":\"untouched\","
@@ -239,7 +250,14 @@ static void format_reply(uint32_t id, cmu_result r)
         id, (unsigned)r, runtime.serial, runtime.boot_id, (unsigned)esp_reset_reason(),
         CMU_SOURCE_REVISION, runtime.elf_hash, runtime.source_ready ? "true" : "false", qmi,
         c->generation, c->state, c->reason, __atomic_load_n(&runtime.backend_failure, __ATOMIC_ACQUIRE),
-        __atomic_load_n(&runtime.drdy_levels_seen, __ATOMIC_ACQUIRE), c->rate, c->mode,
+        __atomic_load_n(&runtime.drdy_levels_seen, __ATOMIC_ACQUIRE),
+        __atomic_load_n(&runtime.probe_result, __ATOMIC_ACQUIRE),
+        __atomic_load_n(&runtime.probe_words[0], __ATOMIC_ACQUIRE),
+        __atomic_load_n(&runtime.probe_words[1], __ATOMIC_ACQUIRE),
+        __atomic_load_n(&runtime.probe_words[2], __ATOMIC_ACQUIRE),
+        __atomic_load_n(&runtime.probe_words[3], __ATOMIC_ACQUIRE),
+        __atomic_load_n(&runtime.probe_words[4], __ATOMIC_ACQUIRE),
+        __atomic_load_n(&runtime.probe_words[5], __ATOMIC_ACQUIRE), c->rate, c->mode,
         c->config.axis, c->config.range_g, c->config.policy, c->config.gain_milli, c->config.cutoff_millihz,
         c->source_snapshot_fresh ? "true" : "false", now_us(), c->generation_output_samples, (unsigned)source_count(NULL), c->queue_high,
         c->queue_low == UINT32_MAX ? 0 : c->queue_low, c->correction_ppm,

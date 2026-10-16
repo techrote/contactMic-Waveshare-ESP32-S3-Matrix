@@ -42,6 +42,10 @@ bool cm_acq_idf_measurement_ready(const cm_acq_idf *ctx);
 uint32_t cm_acq_idf_measured_rate_millihz(const cm_acq_idf *ctx);
 cm_acq_mode cm_acq_idf_current_mode(const cm_acq_idf *ctx);
 cm_acq *cm_acq_idf_core(cm_acq_idf *ctx);
+/* Controller-only bounded read-only probe after a completed zero-rate failure.
+ * Two 12-byte snapshots, 20 ms apart, under acquisition ownership. No samples
+ * are published; this is diagnostic instrumentation, not rate measurement. */
+esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *ctx, uint32_t out[6]);
 
 #ifdef __cplusplus
 }

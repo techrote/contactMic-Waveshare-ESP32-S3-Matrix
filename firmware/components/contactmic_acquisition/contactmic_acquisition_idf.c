@@ -436,3 +436,26 @@ cm_acq *cm_acq_idf_core(cm_acq_idf *ctx)
 {
     return ctx ? &ctx->core : NULL;
 }
+
+esp_err_t cm_acq_idf_zero_rate_probe(cm_acq_idf *ctx, uint32_t out[6])
+{
+    if (!ctx || !out) return ESP_ERR_INVALID_ARG;
+    xSemaphoreTake(ctx->gate, portMAX_DELAY);
+    esp_err_t rc = ESP_ERR_INVALID_STATE;
+    if (load_flag(&ctx->measurement_done) && !cm_acq_measured_rate_millihz(&ctx->core)
+        && load_flag(&ctx->running) && !load_flag(&ctx->publication)) {
+        uint8_t bytes[24];
+        rc = map_qmi(cmq_diagnostic_snapshot(ctx->device, bytes));
+        if (rc == ESP_OK) {
+            vTaskDelay(pdMS_TO_TICKS(20));
+            rc = map_qmi(cmq_diagnostic_snapshot(ctx->device, bytes + 12));
+        }
+        if (rc == ESP_OK) {
+            for (size_t i = 0; i < 6; ++i)
+                out[i] = ((uint32_t)bytes[4*i] << 24) | ((uint32_t)bytes[4*i+1] << 16)
+                    | ((uint32_t)bytes[4*i+2] << 8) | bytes[4*i+3];
+        }
+    }
+    xSemaphoreGive(ctx->gate);
+    return rc;
+}

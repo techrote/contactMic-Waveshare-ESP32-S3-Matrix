@@ -8,4 +8,5 @@ void vTaskNotifyGiveFromISR(TaskHandle_t, BaseType_t *);
 uint32_t ulTaskNotifyValueClear(TaskHandle_t, uint32_t);
 uint32_t ulTaskNotifyTake(BaseType_t, TickType_t);
 void xTaskNotifyGive(TaskHandle_t);
+void vTaskDelay(TickType_t);
 #endif

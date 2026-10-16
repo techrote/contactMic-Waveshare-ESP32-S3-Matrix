@@ -195,6 +195,15 @@ does not cause sensor I/O or waits on the USB owner.
 controller: bit 0=low observed, bit 1=high observed; zero=no observation. It resets
 on each begin and survives cleanup. These sparse digital observations are not an
 edge count, pulse-width measurement or substitute for the acquisition denominator.
+After a completed zero-rate failure only, the controller retains two read-only
+sensor snapshots 20 ms apart under acquisition ownership. `zero_rate_probe_result`
+is zero before observation, one on success, or 0x10000 OR the low 16 bits of the
+ESP error on failure. The six `zero_rate_probe` words encode bytes in display
+(most significant first) order, three words per snapshot: CTRL1/2/3/7,
+CTRL8/FIFO_CTRL/STATUSINT/STATUS0, timestamp low/mid and selected-axis low/high.
+These sequential bytes may tear and are diagnostic observations, never samples
+or a rate/loss denominator. Probe reads count in driver I2C diagnostics and do
+not run on USB callbacks or on a successful preparation path.
 
 Replies use `cm009.v1`, correlate `request_id`, and include stable serial, boot ID,
 reset reason, firmware/ELF identities, QMI identity, generation/state/reason, mode,

@@ -168,9 +168,26 @@ static void test_invalid(void)
     CHECK(f.calls == calls); CHECK(cmq_nominal_rate_millihz((cmq_mode)5) == 0);
     CHECK(cmq_settling_us((cmq_mode)-1) == 0);
 }
+static void test_diagnostics(void)
+{
+    fake f; cmq_device d; ready(&f,&d);cmq_config c=configuration();
+    CHECK(cmq_configure(&d,&c)==CMQ_OK);CHECK(cmq_start(&d)==CMQ_OK);
+    const uint8_t regs[12]={2,3,4,8,9,0x14,0x2d,0x2e,0x30,0x31,0x39,0x3a};
+    uint8_t bytes[12];size_t writes=f.writes;uint64_t samples=d.counters.samples_read;
+    for(size_t i=0;i<12;i++)f.regs[1][regs[i]]=(uint8_t)(i+16);
+    CHECK(cmq_diagnostic_snapshot(&d,bytes)==CMQ_OK);
+    for(size_t i=0;i<12;i++)CHECK(bytes[i]==i+16);
+    CHECK(f.writes==writes && d.counters.samples_read==samples);
+    for(size_t call=1;call<=12;call++) {
+        f.fail_at=f.calls+call;memset(bytes,0xcc,12);
+        CHECK(cmq_diagnostic_snapshot(&d,bytes)==CMQ_IO);
+        for(size_t i=0;i<12;i++)CHECK(bytes[i]==0xcc);
+    }
+    CHECK(d.state==CMQ_RUNNING && f.writes==writes);
+}
 int main(void)
 {
-    test_probe(); test_configuration(); test_failures(); test_samples(); test_invalid();
+    test_probe(); test_configuration(); test_failures(); test_samples(); test_invalid();test_diagnostics();
     puts("QMI driver: probe, register policy, recovery, boundary and fault-injection tests passed");
     return 0;
 }

@@ -8,6 +8,10 @@ unsigned cm_test_critical;
 static int64_t clock_us;
 static bool irq_enabled, level_high=true, interrupt_in_read, io_failure;
 static unsigned reads;
+static unsigned probes;
+void vTaskDelay(TickType_t t) { CHECK(t==pdMS_TO_TICKS(20));clock_us+=20000; }
+cmq_result cmq_diagnostic_snapshot(cmq_device *d,uint8_t out[12])
+{CHECK(!cm_test_critical&&d->state==CMQ_RUNNING);memset(out,++probes,12);return CMQ_OK;}
 static void (*handler)(void *);
 static void *handler_context;
 static int task_storage, gate_storage;
@@ -84,6 +88,11 @@ int main(void)
     CHECK(cm_acq_idf_prepare(a)==ESP_OK && cm_acq_idf_measured_rate_millihz(a)==0);
     CHECK(device.config.axis==CMQ_X && device.config.range_g==4 && device.config.mode==CMQ_MEDIUM);
     CHECK(cm_acq_idf_publish(a)==ESP_ERR_INVALID_STATE);
+    uint32_t words[6]={0};
+    CHECK(cm_acq_idf_zero_rate_probe(a,words)==ESP_ERR_INVALID_STATE && probes==0);
+    clock_us+=300000;acquisition_cycle(a);
+    CHECK(cm_acq_idf_zero_rate_probe(a,words)==ESP_OK && probes==2);
+    CHECK(words[0]==0x01010101 && words[5]==0x02020202);
     cm_acq_idf_destroy(a);
     CHECK(cm_test_critical==0);
     puts("CM-006 production IDF adapter scheduler tests passed");return 0;
