@@ -25,3 +25,9 @@ target_include_directories(cm009_acquisition_pipeline PRIVATE ${USB_CORE}/includ
 target_compile_options(cm009_acquisition_pipeline PRIVATE -Wall -Wextra -Wpedantic -Werror)
 target_link_libraries(cm009_acquisition_pipeline PRIVATE m)
 add_test(NAME native.cm009_acquisition_pipeline COMMAND cm009_acquisition_pipeline)
+
+# Verify the accounting boundary in the production core, not a counter fake.
+add_executable(cm009_source_ledger test_source_ledger.c ${ACQUISITION}/contactmic_acquisition.c)
+target_include_directories(cm009_source_ledger PRIVATE ${ACQUISITION}/include)
+target_compile_options(cm009_source_ledger PRIVATE -Wall -Wextra -Wpedantic -Werror)
+add_test(NAME native.cm009_source_ledger COMMAND cm009_source_ledger)
