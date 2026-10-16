@@ -132,3 +132,13 @@ Required repeated gates after a coherency change: fresh enumeration/recovery and
 For each attempt preserve raw `metadata.json`, `telemetry.jsonl`, `control.jsonl`, `summary.json`, `SHA256SUMS.json`, `capture.wav` when requested, enumeration/build/flash/provenance logs and operator observations. Failed attempts are never overwritten or rewritten as successes. At session end run `Stop-Transcript`, then hash the closed transcript and other session-level files separately; do not add them inside a sealed capture bundle.
 
 No cloud log can certify a physical button press, reconnect, LED observation or recording. Keep PR #17 draft, #16 open, BLE #7/#15 held and CM-008 unstarted until their actual acceptance requirements are met.
+
+## CI-only launcher follow-up
+
+This revision binds console-script tests to the current interpreter's installed
+scripts directory instead of searching ambient PATH. It does not change firmware,
+acquisition, transport behavior, defaults or hardware acceptance. Publish this
+handoff update in the same commit as the test repair so the candidate-anchor check
+above identifies that new revision. Record the new full commit in the issue
+checkpoint and require its normal exact-head CI; an older green run is insufficient.
+The existing MEDIUM and BLE holds remain unchanged.
